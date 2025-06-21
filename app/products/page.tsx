@@ -43,7 +43,7 @@ export default function ProductsPage() {
     PageIndex: 1,
     PageSize: 10,
     IsDescending: false,
-    SortBy: "name",
+    SortBy: "",
   })
 
   // Categories store

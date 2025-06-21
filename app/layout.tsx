@@ -1,5 +1,6 @@
 import type React from "react"
 import "./globals.css"
+import "../styles/globals.css"
 import { Inter } from "next/font/google"
 import { DM_Sans } from "next/font/google"
 import ClientLayout from "./clientLayout"

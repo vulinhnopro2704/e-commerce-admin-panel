@@ -12,6 +12,7 @@ export interface Category {
   id: string
   name: string
   subCategories?: Category[]
+  parentId?: string | null
 }
 
 export interface Product {
