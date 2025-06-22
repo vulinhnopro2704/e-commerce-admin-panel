@@ -10,6 +10,8 @@ const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLa
 const CircleMarker = dynamic(() => import("react-leaflet").then((mod) => mod.CircleMarker), { ssr: false })
 const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { ssr: false })
 const Tooltip = dynamic(() => import("react-leaflet").then((mod) => mod.Tooltip), { ssr: false })
+const ZoomControl = dynamic(() => import("react-leaflet").then((mod) => mod.ZoomControl), { ssr: false })
+const Rectangle = dynamic(() => import("react-leaflet").then((mod) => mod.Rectangle), { ssr: false })
 
 interface CustomerLocation {
   id: number
@@ -78,30 +80,79 @@ export default function CustomerMap({ customers, height = "400px" }: CustomerMap
     )
   }
 
-  // Vietnam center coordinates
-  const vietnamCenter: [number, number] = [16.0583, 108.2772]
+  // Vietnam center coordinates - adjusted to include all territories
+  const vietnamCenter: [number, number] = [14.058, 110.2772]
+  
+  // Set bounds for Vietnam territory including Hoang Sa and Truong Sa
+  const vietnamBounds: [[number, number], [number, number]] = [
+    [6.0, 102.0],  // Southwest corner - expanded to include Truong Sa
+    [23.5, 118.0]  // Northeast corner - expanded to include Hoang Sa
+  ]
+
+  // Coordinates for highlighting important Vietnamese territories
+  const hoangSaCoords: [[number, number], [number, number]] = [
+    [15.5, 111.0],
+    [17.0, 113.0]
+  ]
+  
+  const truongSaCoords: [[number, number], [number, number]] = [
+    [8.0, 111.5],
+    [12.0, 117.5]
+  ]
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Customer Distribution Map</CardTitle>
         <CardDescription>
-          Geographic distribution of {customers.length} customer locations with circle visualization
+          Geographic distribution of {customers.length} customer locations across Vietnam territory
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div style={{ height }} className="rounded-lg overflow-hidden border">
           <MapContainer
             center={vietnamCenter}
-            zoom={6}
+            zoom={5}
             style={{ height: "100%", width: "100%" }}
-            zoomControl={true}
             scrollWheelZoom={true}
+            maxBounds={vietnamBounds}
+            minZoom={5}
+            maxZoom={10}
+            zoomControl={false}
+            attributionControl={false}
+            bounds={vietnamBounds}
           >
+            {/* Using CartoDB Positron map which is more minimal and neutral */}
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
             />
+            
+            <ZoomControl position="topright" />
+
+            {/* Highlight Vietnam's island territories */}
+            <Rectangle 
+              bounds={hoangSaCoords} 
+              pathOptions={{ color: '#10B981', weight: 1, fillOpacity: 0.1 }} 
+            >
+              <Tooltip direction="center" permanent opacity={0.9}>
+                <div className="text-center">
+                  <div className="font-semibold text-xs">Hoàng Sa</div>
+                  <div className="text-xs text-gray-600">(Paracel Islands)</div>
+                </div>
+              </Tooltip>
+            </Rectangle>
+            
+            <Rectangle 
+              bounds={truongSaCoords} 
+              pathOptions={{ color: '#10B981', weight: 1, fillOpacity: 0.1 }} 
+            >
+              <Tooltip direction="center" permanent opacity={0.9}>
+                <div className="text-center">
+                  <div className="font-semibold text-xs">Trường Sa</div>
+                  <div className="text-xs text-gray-600">(Spratly Islands)</div>
+                </div>
+              </Tooltip>
+            </Rectangle>
 
             {/* Circle markers for each customer location */}
             {customers.map((customer) => (
@@ -137,14 +188,16 @@ export default function CustomerMap({ customers, height = "400px" }: CustomerMap
                         style={{ backgroundColor: getCircleColor(customer.count) }}
                       ></div>
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      Lat: {customer.lat.toFixed(4)}, Lng: {customer.lng.toFixed(4)}
-                    </div>
                   </div>
                 </Popup>
               </CircleMarker>
             ))}
           </MapContainer>
+        </div>
+
+        {/* Vietnam territorial note */}
+        <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded mt-2 mb-2">
+          <strong>Note:</strong> Map displays Vietnam's full territorial claims including Hoàng Sa (Paracel Islands) and Trường Sa (Spratly Islands).
         </div>
 
         {/* Legend */}
