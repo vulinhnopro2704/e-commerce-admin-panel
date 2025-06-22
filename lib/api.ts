@@ -403,6 +403,27 @@ class ApiClient {
     )
   }
 
+  async updateCategory(id: string, categoryData: any) {
+    return this.fetchWithAuth(
+      `${API_ENDPOINTS.INVENTORY.CATEGORIES}/${id}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(categoryData),
+      },
+      false,
+      1,
+    )
+  }
+
+  async deleteCategory(id: string) {
+    return this.fetchWithAuth(
+      `${API_ENDPOINTS.INVENTORY.CATEGORIES}/${id}`,
+      { method: "DELETE" },
+      false,
+      1,
+    )
+  }
+
   // Product APIs - Real API calls with retry
   async getProducts(params?: ProductQueryParams): Promise<PaginatedResponse<Product>> {
     const url = new URL(API_ENDPOINTS.SHOPPING.PRODUCTS)

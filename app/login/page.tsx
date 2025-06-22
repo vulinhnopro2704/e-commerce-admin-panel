@@ -127,16 +127,6 @@ export default function LoginPage() {
                 )}
               </Button>
             </form>
-
-            <div className="mt-6 text-center text-sm text-gray-600">
-              <p>Default Admin Credentials:</p>
-              <p className="font-mono text-xs bg-gray-100 p-2 rounded mt-1">
-                Email: {DEFAULT_ADMIN_CREDENTIALS.email}
-                <br />
-                Password: {DEFAULT_ADMIN_CREDENTIALS.password}
-              </p>
-              <p className="text-xs text-purple-600 mt-2">⚠️ Only users with admin role can access this panel</p>
-            </div>
           </CardContent>
         </Card>
       </motion.div>

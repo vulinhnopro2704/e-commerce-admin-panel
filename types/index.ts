@@ -20,8 +20,7 @@ export interface User {
 export interface Category {
   id: string
   name: string
-  subCategories?: Category[]
-  parentId?: string | null
+  subCategories: Category[]
 }
 
 export interface Order {

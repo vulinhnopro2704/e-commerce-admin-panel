@@ -162,7 +162,7 @@ export default function CustomersPage() {
       header: "Actions",
       render: (user) => (
         <div className="flex items-center space-x-2">
-          <Button
+          {/* <Button
             variant="ghost"
             size="sm"
             onClick={() => {
@@ -172,7 +172,7 @@ export default function CustomersPage() {
             className="text-orange-600 hover:text-orange-700"
           >
             {!user.deletedAt ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-          </Button>
+          </Button> */}
           <Button
             variant="ghost"
             size="sm"

@@ -7,7 +7,6 @@ import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -16,77 +15,38 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import CategoryTable from "@/components/ui/category-table"
+import CategoryListView from "@/components/ui/category-list-view"
 import ConfirmationDialog from "@/components/ui/confirmation-dialog"
 import Header from "@/components/layout/header"
 import type { Category } from "@/types"
+import { useCategoriesStore } from "@/lib/categories-store"
 import { apiClient } from "@/lib/api"
+import { API_ENDPOINTS } from "@/constants/endpoints"
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState<Category[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const { categories, isLoading, error, fetchCategories } = useCategoriesStore()
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
-    parentId: "",
   })
 
   useEffect(() => {
     fetchCategories()
-  }, [])
-
-  const fetchCategories = async () => {
-    try {
-      setIsLoading(true)
-      const categoryData = await apiClient.getCategories()
-      
-      // Process the categories into a hierarchical structure
-      const rootCategories: Category[] = []
-      const categoryMap = new Map<string, Category>()
-      
-      // First pass: create a map of categories by ID
-      categoryData.forEach((category: Category) => {
-        categoryMap.set(category.id, { ...category, subCategories: [] })
-      })
-      
-      // Second pass: build the hierarchy
-      categoryData.forEach((category: Category) => {
-        const categoryWithSubcategories = categoryMap.get(category.id)!
-        
-        if (category.parentId && categoryMap.has(category.parentId)) {
-          // This is a subcategory, add it to its parent
-          const parent = categoryMap.get(category.parentId)!
-          parent.subCategories = parent.subCategories || []
-          parent.subCategories.push(categoryWithSubcategories)
-        } else {
-          // This is a root category
-          rootCategories.push(categoryWithSubcategories)
-        }
-      })
-      
-      setCategories(rootCategories)
-    } catch (error) {
-      console.error("Error fetching categories:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  }, [fetchCategories])
 
   const handleOpenDialog = (category?: Category) => {
     if (category) {
       setSelectedCategory(category)
       setFormData({
         name: category.name,
-        parentId: category.parentId || "none",
       })
     } else {
       setSelectedCategory(null)
       setFormData({
         name: "",
-        parentId: "none",
       })
     }
     setIsDialogOpen(true)
@@ -97,7 +57,6 @@ export default function CategoriesPage() {
     setSelectedCategory(null)
     setFormData({
       name: "",
-      parentId: "none",
     })
   }
 
@@ -109,42 +68,18 @@ export default function CategoriesPage() {
       // Prepare category data
       const categoryData = {
         name: formData.name,
-        parentId: formData.parentId === "none" ? null : formData.parentId,
       }
 
       if (selectedCategory) {
         // Update existing category
-        const updatedCategory = {
-          ...selectedCategory,
-          ...categoryData,
-        }
-        
-        // Update the category in the API
-        // await apiClient.updateCategory(updatedCategory)
-        
-        // Update local state
-        // This is a simplified update that doesn't handle the hierarchical structure
-        // In a real implementation, you would refetch the categories or update the tree structure
-        setCategories(
-          categories.map((cat) => (cat.id === selectedCategory.id ? updatedCategory : cat))
-        )
+        await apiClient.updateCategory(selectedCategory.id, categoryData)
       } else {
         // Create new category
-        const newCategory: Category = {
-          id: Date.now().toString(),
-          name: formData.name,
-          parentId: formData.parentId === "none" ? undefined : formData.parentId,
-        }
-        
-        // Create the category in the API
-        // await apiClient.createCategory(newCategory)
-        
-        // Update local state
-        // This is a simplified update that doesn't handle the hierarchical structure
-        // In a real implementation, you would refetch the categories or update the tree structure
-        setCategories([...categories, newCategory])
+        await apiClient.createCategory(categoryData)
       }
       
+      // Refresh categories after update
+      await fetchCategories()
       handleCloseDialog()
     } catch (error) {
       console.error("Error saving category:", error)
@@ -158,8 +93,8 @@ export default function CategoriesPage() {
 
     try {
       setIsProcessing(true)
-      await apiClient.delete(`/api/inventory/categories/${selectedCategory.id}`)
-      setCategories(categories.filter((cat) => cat.id !== selectedCategory.id))
+      await apiClient.deleteCategory(selectedCategory.id)
+      await fetchCategories()
       setIsDeleteDialogOpen(false)
       setSelectedCategory(null)
     } catch (error) {
@@ -169,10 +104,9 @@ export default function CategoriesPage() {
     }
   }
 
-  const handleAddCategory = (parentId?: string) => {
+  const handleAddCategory = () => {
     setFormData({
       name: "",
-      parentId: parentId || "none",
     })
     setSelectedCategory(null)
     setIsDialogOpen(true)
@@ -191,8 +125,21 @@ export default function CategoriesPage() {
     <div className="flex-1 space-y-6 p-6">
       <Header title="Categories Management" />
 
+      {error && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-md mb-4">
+          <p>Error loading categories: {error}</p>
+          <Button 
+            onClick={() => fetchCategories()} 
+            variant="outline" 
+            className="mt-2"
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-        <CategoryTable
+        <CategoryListView
           categories={categories}
           isLoading={isLoading}
           onRefresh={fetchCategories}
@@ -206,6 +153,12 @@ export default function CategoriesPage() {
           emptyState={
             <div className="text-center py-8">
               <p className="text-gray-500">No categories found</p>
+              <Button 
+                onClick={() => handleAddCategory()} 
+                className="mt-4 bg-purple-600 hover:bg-purple-700"
+              >
+                Add First Category
+              </Button>
             </div>
           }
         />
@@ -230,23 +183,6 @@ export default function CategoriesPage() {
                 placeholder="Enter category name"
                 required
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="parentId">Parent Category</Label>
-              <Select 
-                value={formData.parentId} 
-                onValueChange={(value) => setFormData({ ...formData, parentId: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a parent category (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None (Root Category)</SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleCloseDialog} disabled={isProcessing}>

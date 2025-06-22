@@ -401,37 +401,6 @@ export default function DashboardPage() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}>
         <CustomerMap customers={customerLocations} height="500px" />
       </motion.div>
-
-      {/* Recent Activity */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest system activities and updates</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {[
-                { action: "New user registered", user: "john.doe@example.com", time: "2 minutes ago" },
-                { action: "Product updated", user: "iPhone 15 Pro", time: "5 minutes ago" },
-                { action: "Order completed", user: "Order #12345", time: "10 minutes ago" },
-                { action: "Category created", user: "Smart Home", time: "15 minutes ago" },
-              ].map((activity, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{activity.action}</p>
-                    <p className="text-xs text-gray-500">{activity.user}</p>
-                  </div>
-                  <span className="text-xs text-gray-400">{activity.time}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
     </div>
   )
 }
