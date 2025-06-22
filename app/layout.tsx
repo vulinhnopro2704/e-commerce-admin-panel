@@ -30,5 +30,24 @@ export default function RootLayout({
 }
 
 export const metadata = {
-      generator: 'Phạm Hồng Phúc'
-    };
+  title: 'SUPERBAD.STORE Admin Panel',
+  description: 'Admin management dashboard for SUPERBAD.STORE e-commerce platform',
+  keywords: 'admin, dashboard, e-commerce, management, superbad, store, superbad.store',
+  authors: [{ name: 'Phạm Hồng Phúc' }],
+  creator: 'SUPERBAD.STORE',
+  publisher: 'SUPERBAD.STORE',
+  colorScheme: 'dark light',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#7c3aed' },
+    { media: '(prefers-color-scheme: dark)', color: '#4c1d95' }
+  ],
+  openGraph: {
+    title: 'SUPERBAD.STORE Admin Panel',
+    description: 'Admin management dashboard for SUPERBAD.STORE e-commerce platform',
+    url: 'https://admin-superbad-store.vercel.app/',
+    siteName: 'SUPERBAD.STORE Admin',
+    locale: 'en_US',
+    type: 'website',
+  },
+  metadataBase: new URL('https://admin-superbad-store.vercel.app/'),
+};
