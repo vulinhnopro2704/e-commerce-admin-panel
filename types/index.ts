@@ -202,3 +202,11 @@ export interface AdminChangePasswordRequest {
   password: string
   confirmPassword: string
 }
+
+// Add interface for the new statistics API response
+export interface StatisticsResponse {
+  totalUsers: number;
+  totalProducts: number;
+  totalOrders: number;
+  totalSales: number;
+}

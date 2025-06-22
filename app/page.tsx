@@ -3,16 +3,18 @@
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts"
-import { Users, Package, ShoppingCart, DollarSign, TrendingUp, TrendingDown, BarChart as BarChartIcon, List } from "lucide-react"
+import { Users, Package, ShoppingCart, DollarSign, BarChart as BarChartIcon, List, RefreshCw } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import type { DashboardStats, CategorySales } from "@/types"
+import type { DashboardStats, CategorySales, StatisticsResponse } from "@/types"
 import Header from "@/components/layout/header"
 import { apiClient } from "@/lib/api"
 import CustomerMap from "@/components/ui/customer-map"
 import { truncateText } from "@/lib/utils"
+import { cacheUtils, CACHE_KEYS } from "@/lib/cache-utils"
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 // More distinct colors for categories
 const CATEGORY_COLORS = [
@@ -31,76 +33,157 @@ const CATEGORY_COLORS = [
   return color + Math.round(opacity * 255).toString(16).padStart(2, '0');
 });
 
+// Cache duration settings (in milliseconds)
+const CACHE_DURATION = {
+  STATS: 15 * 60 * 1000, // 15 minutes
+  LOCATIONS: 30 * 60 * 1000, // 30 minutes
+  CATEGORIES: 20 * 60 * 1000, // 20 minutes
+}
+
+export interface CustomerLocation {
+  id: number,
+  lat: number,
+  lng: number,
+  count: number,
+  province: string
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [statistics, setStatistics] = useState<StatisticsResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [salesViewMode, setSalesViewMode] = useState<"chart" | "list">("chart")
   const [categoryData, setCategoryData] = useState<CategorySales[]>([])
+  const [customerLocations, setCustomerLocations] = useState<CustomerLocation[]>([])
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [usingCachedData, setUsingCachedData] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
-  // Sample customer data for Vietnam cities
-  const customerLocations = [
-    { id: 1, lat: 21.0285, lng: 105.8542, count: 150, city: "Hà Nội", address: "Hoàn Kiếm, Hà Nội" },
-    { id: 2, lat: 10.8231, lng: 106.6297, count: 200, city: "TP.HCM", address: "Quận 1, TP.HCM" },
-    { id: 3, lat: 16.0544, lng: 108.2022, count: 80, city: "Đà Nẵng", address: "Hải Châu, Đà Nẵng" },
-    { id: 4, lat: 20.8449, lng: 106.6881, count: 60, city: "Hải Phòng", address: "Ngô Quyền, Hải Phòng" },
-    { id: 5, lat: 10.0452, lng: 105.7469, count: 90, city: "Cần Thơ", address: "Ninh Kiều, Cần Thơ" },
-    { id: 6, lat: 12.2585, lng: 109.0526, count: 45, city: "Nha Trang", address: "Nha Trang, Khánh Hòa" },
-    { id: 7, lat: 21.5937, lng: 105.8455, count: 35, city: "Thái Nguyên", address: "Thái Nguyên" },
-    { id: 8, lat: 18.3351, lng: 105.9069, count: 55, city: "Vinh", address: "Vinh, Nghệ An" },
-    { id: 9, lat: 11.9404, lng: 108.4583, count: 40, city: "Đà Lạt", address: "Đà Lạt, Lâm Đồng" },
-    { id: 10, lat: 13.7563, lng: 109.2177, count: 25, city: "Quy Nhon", address: "Quy Nhon, Bình Định" },
-  ]
+  // Format the last updated time
+  const formattedLastUpdated = lastUpdated ? 
+    `${lastUpdated.toLocaleDateString()} ${lastUpdated.toLocaleTimeString()}` : 
+    'Never';
+
+  const fetchDashboardData = async (forceRefresh = false) => {
+    try {
+      if (!forceRefresh) {
+        setIsLoading(true);
+      } else {
+        setIsRefreshing(true);
+        // Clear cache when forcing a refresh
+        cacheUtils.clearByPrefix(CACHE_KEYS.DASHBOARD_PREFIX);
+      }
+      
+      // Try to get data from cache first
+      let statsData = null;
+      let statisticsData = null;
+      let categoryDataResult = null;
+      let locationsData = null;
+      
+      if (!forceRefresh) {
+        statsData = cacheUtils.get<DashboardStats>(CACHE_KEYS.DASHBOARD_STATS, CACHE_DURATION.STATS);
+        statisticsData = cacheUtils.get<StatisticsResponse>(CACHE_KEYS.STATISTICS, CACHE_DURATION.STATS);
+        categoryDataResult = cacheUtils.get<CategorySales[]>(CACHE_KEYS.CATEGORY_DATA, CACHE_DURATION.CATEGORIES);
+        locationsData = cacheUtils.get<CustomerLocation[]>(CACHE_KEYS.CUSTOMER_LOCATIONS, CACHE_DURATION.LOCATIONS);
+        
+        // Check if all data is available in cache
+        if (statsData && statisticsData && categoryDataResult && locationsData) {
+          setStats(statsData);
+          setStatistics(statisticsData);
+          setCategoryData(categoryDataResult);
+          setCustomerLocations(locationsData);
+          setUsingCachedData(true);
+          
+          // Get the timestamp of the cache
+          const timestamp = localStorage.getItem(CACHE_KEYS.DASHBOARD_STATS);
+          if (timestamp) {
+            const cachedItem = JSON.parse(timestamp);
+            setLastUpdated(new Date(cachedItem.timestamp));
+          }
+          
+          setIsLoading(false);
+          return;
+        }
+      }
+      
+      setUsingCachedData(false);
+      
+      // Fetch dashboard stats if not in cache or force refresh
+      if (!statsData || forceRefresh) {
+        const newStats = await apiClient.getDashboardStats();
+        setStats(newStats);
+        cacheUtils.set(CACHE_KEYS.DASHBOARD_STATS, newStats);
+      } else {
+        setStats(statsData);
+      }
+      
+      // Fetch statistics if not in cache or force refresh
+      if (!statisticsData || forceRefresh) {
+        const newStatistics = await apiClient.getStatistics();
+        setStatistics(newStatistics);
+        cacheUtils.set(CACHE_KEYS.STATISTICS, newStatistics);
+      } else {
+        setStatistics(statisticsData);
+      }
+      
+      // Fetch sales by category data if not in cache or force refresh
+      if (!categoryDataResult || forceRefresh) {
+        const newCategoryData = await apiClient.getSalesByCategory();
+        setCategoryData(newCategoryData);
+        cacheUtils.set(CACHE_KEYS.CATEGORY_DATA, newCategoryData);
+      } else {
+        setCategoryData(categoryDataResult);
+      }
+      
+      // Fetch customer locations data if not in cache or force refresh
+      if (!locationsData || forceRefresh) {
+        const newLocationsData = await apiClient.getUserLocations();
+        setCustomerLocations(newLocationsData);
+        cacheUtils.set(CACHE_KEYS.CUSTOMER_LOCATIONS, newLocationsData);
+      } else {
+        setCustomerLocations(locationsData);
+      }
+      
+      // Update last updated time
+      setLastUpdated(new Date());
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  // Function to handle manual refresh
+  const handleRefresh = () => {
+    fetchDashboardData(true);
+  };
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setIsLoading(true)
-        
-        // Fetch dashboard stats
-        const stats = await apiClient.getDashboardStats()
-        setStats(stats)
-        
-        // Fetch sales by category data
-        const categoryData = await apiClient.getSalesByCategory()
-        setCategoryData(categoryData)
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchDashboardData()
+    fetchDashboardData();
   }, [])
 
+  // Updated stat cards without change indicators
   const statCards = [
     {
       title: "Total Users",
-      value: stats?.totalUsers || 0,
+      value: statistics?.totalUsers || 0,
       icon: Users,
-      change: "+12%",
-      changeType: "positive" as const,
     },
     {
       title: "Total Products",
-      value: stats?.totalProducts || 0,
+      value: statistics?.totalProducts || 0,
       icon: Package,
-      change: "+8%",
-      changeType: "positive" as const,
     },
     {
       title: "Total Orders",
-      value: stats?.totalOrders || 0,
+      value: statistics?.totalOrders || 0,
       icon: ShoppingCart,
-      change: "+23%",
-      changeType: "positive" as const,
     },
     {
       title: "Total Revenue",
-      value: `$${(stats?.totalRevenue || 0).toLocaleString()}`,
+      value: `$${(statistics?.totalSales || 0).toLocaleString()}`,
       icon: DollarSign,
-      change: "+15%",
-      changeType: "positive" as const,
     },
   ]
 
@@ -159,7 +242,35 @@ export default function DashboardPage() {
 
   return (
     <div className="flex-1 space-y-6 p-6">
-      <Header title="Dashboard" />
+      <div className="flex items-center justify-between">
+        <Header title="Dashboard" />
+        <div className="flex items-center gap-4">
+          {usingCachedData && (
+            <TooltipProvider>
+              <UITooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className="py-1">
+                    <span className="w-2 h-2 bg-amber-500 rounded-full mr-2"></span>
+                    Cached
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Showing cached data from {formattedLastUpdated}</p>
+                </TooltipContent>
+              </UITooltip>
+            </TooltipProvider>
+          )}
+          <Button 
+            size="sm"
+            onClick={handleRefresh} 
+            disabled={isRefreshing}
+            className="flex items-center gap-1"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            {isRefreshing ? "Refreshing..." : "Refresh"}
+          </Button>
+        </div>
+      </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -180,21 +291,6 @@ export default function DashboardPage() {
                   <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
                     <stat.icon className="w-6 h-6 text-purple-600" />
                   </div>
-                </div>
-                <div className="flex items-center mt-4">
-                  {stat.changeType === "positive" ? (
-                    <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
-                  ) : (
-                    <TrendingDown className="w-4 h-4 text-red-500 mr-1" />
-                  )}
-                  <span
-                    className={`text-sm font-medium ${
-                      stat.changeType === "positive" ? "text-green-600" : "text-red-600"
-                    }`}
-                  >
-                    {stat.change}
-                  </span>
-                  <span className="text-sm text-gray-500 ml-1">from last month</span>
                 </div>
               </CardContent>
             </Card>
@@ -399,7 +495,17 @@ export default function DashboardPage() {
 
       {/* Customer Distribution Map */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}>
-        <CustomerMap customers={customerLocations} height="500px" />
+        <CustomerMap 
+          customers={customerLocations.map(location => ({
+            id: location.id,
+            lat: location.lat,
+            lng: location.lng,
+            count: location.count,
+            city: location.province, // Use province as city
+            address: location.province // Use province as address
+          }))} 
+          height="500px" 
+        />
       </motion.div>
     </div>
   )

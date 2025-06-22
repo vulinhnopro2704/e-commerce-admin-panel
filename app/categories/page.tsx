@@ -21,13 +21,11 @@ import Header from "@/components/layout/header"
 import type { Category } from "@/types"
 import { useCategoriesStore } from "@/lib/categories-store"
 import { apiClient } from "@/lib/api"
-import { API_ENDPOINTS } from "@/constants/endpoints"
 
 export default function CategoriesPage() {
   const { categories, isLoading, error, fetchCategories } = useCategoriesStore()
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
@@ -95,7 +93,6 @@ export default function CategoriesPage() {
       setIsProcessing(true)
       await apiClient.deleteCategory(selectedCategory.id)
       await fetchCategories()
-      setIsDeleteDialogOpen(false)
       setSelectedCategory(null)
     } catch (error) {
       console.error("Error deleting category:", error)
@@ -114,11 +111,6 @@ export default function CategoriesPage() {
   
   const handleEditCategory = (category: Category) => {
     handleOpenDialog(category)
-  }
-  
-  const handleDeleteCategory = async (category: Category) => {
-    setSelectedCategory(category)
-    setIsDeleteDialogOpen(true)
   }
 
   return (
@@ -148,8 +140,6 @@ export default function CategoriesPage() {
             console.log("Search:", query)
           }}
           onAdd={handleAddCategory}
-          onEdit={handleEditCategory}
-          onDelete={handleDeleteCategory}
           emptyState={
             <div className="text-center py-8">
               <p className="text-gray-500">No categories found</p>
@@ -195,21 +185,6 @@ export default function CategoriesPage() {
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <ConfirmationDialog
-        isOpen={isDeleteDialogOpen}
-        onClose={() => {
-          setIsDeleteDialogOpen(false)
-          setSelectedCategory(null)
-        }}
-        onConfirm={handleDeleteConfirmation}
-        title="Delete Category"
-        message={`Are you sure you want to delete "${selectedCategory?.name}"? This action cannot be undone.`}
-        confirmText="Delete"
-        type="danger"
-        isLoading={isProcessing}
-      />
     </div>
   )
 }

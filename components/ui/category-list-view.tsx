@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ChevronDown, ChevronRight, Edit, Trash } from "lucide-react"
+import { ChevronDown, ChevronRight} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { type Category } from "@/types"
 
@@ -9,19 +9,13 @@ interface CategoryListViewProps {
   onRefresh: () => void
   onSearch: (query: string) => void
   onAdd: () => void
-  onEdit: (category: Category) => void
-  onDelete: (category: Category) => void
   emptyState?: React.ReactNode
 }
 
 const CategoryItem = ({ 
   category, 
-  onEdit, 
-  onDelete 
 }: { 
   category: Category
-  onEdit: (category: Category) => void
-  onDelete: (category: Category) => void
 }) => {
   const [isExpanded, setIsExpanded] = useState(false)
   const hasSubcategories = category.subCategories && category.subCategories.length > 0
@@ -42,26 +36,6 @@ const CategoryItem = ({
           )}
           <span className="font-medium">{category.name}</span>
         </div>
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onEdit(category)}
-            className="h-8 w-8 p-0"
-          >
-            <Edit size={16} />
-            <span className="sr-only">Edit</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onDelete(category)}
-            className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
-          >
-            <Trash size={16} />
-            <span className="sr-only">Delete</span>
-          </Button>
-        </div>
       </div>
       
       {isExpanded && hasSubcategories && (
@@ -70,8 +44,6 @@ const CategoryItem = ({
             <CategoryItem
               key={subcategory.id}
               category={subcategory}
-              onEdit={onEdit}
-              onDelete={onDelete}
             />
           ))}
         </div>
@@ -83,11 +55,7 @@ const CategoryItem = ({
 const CategoryListView: React.FC<CategoryListViewProps> = ({
   categories,
   isLoading,
-  onRefresh,
-  onSearch,
   onAdd,
-  onEdit,
-  onDelete,
   emptyState,
 }) => {
   if (isLoading) {
@@ -126,8 +94,6 @@ const CategoryListView: React.FC<CategoryListViewProps> = ({
           <CategoryItem
             key={category.id}
             category={category}
-            onEdit={onEdit}
-            onDelete={onDelete}
           />
         ))}
       </div>

@@ -29,6 +29,7 @@ interface CustomerMapProps {
 
 export default function CustomerMap({ customers, height = "400px" }: CustomerMapProps) {
   const [isClient, setIsClient] = useState(false)
+  const [thresholds, setThresholds] = useState<number[]>([])
 
   useEffect(() => {
     setIsClient(true)
@@ -40,22 +41,46 @@ export default function CustomerMap({ customers, height = "400px" }: CustomerMap
       link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       document.head.appendChild(link)
     }
-  }, [])
+    
+    // Calculate dynamic thresholds based on the data
+    if (customers.length > 0) {
+      const counts = customers.map(c => c.count);
+      const min = Math.min(...counts);
+      const max = Math.max(...counts);
+      const range = max - min;
+      
+      // Create 4 thresholds with more spacing at higher values
+      setThresholds([
+        min,
+        min + range * 0.4,  // 40% of the range
+        min + range * 0.7,  // 70% of the range 
+        min + range * 0.9,  // 90% of the range
+        max
+      ]);
+    }
+  }, [customers]);
 
-  // Function to get circle size based on customer count
+  // Function to get circle size based on customer count using dynamic thresholds
   const getCircleSize = (count: number) => {
-    if (count <= 30) return 8
-    if (count <= 80) return 15
-    if (count <= 150) return 25
-    return 35
+    if (thresholds.length === 0) return 12;
+    if (count < thresholds[1]) return 8;
+    if (count < thresholds[2]) return 12;
+    if (count < thresholds[3]) return 16;
+    return 20;
   }
 
-  // Function to get circle color based on customer count
+  // Function to get circle color based on customer count using dynamic thresholds
   const getCircleColor = (count: number) => {
-    if (count <= 30) return "#3B82F6" // Blue
-    if (count <= 80) return "#EAB308" // Yellow
-    if (count <= 150) return "#F97316" // Orange
-    return "#EF4444" // Red
+    if (thresholds.length === 0) return "#3B82F6";
+    if (count < thresholds[1]) return "#3B82F6"; // Blue
+    if (count < thresholds[2]) return "#EAB308"; // Yellow
+    if (count < thresholds[3]) return "#F97316"; // Orange
+    return "#EF4444"; // Red
+  }
+
+  // Function to format numbers for display
+  const formatNumber = (num: number) => {
+    return Math.round(num).toLocaleString();
   }
 
   // Function to get circle opacity based on customer count
@@ -200,29 +225,35 @@ export default function CustomerMap({ customers, height = "400px" }: CustomerMap
           <strong>Note:</strong> Map displays Vietnam's full territorial claims including Hoàng Sa (Paracel Islands) and Trường Sa (Spratly Islands).
         </div>
 
-        {/* Legend */}
+        {/* Legend with dynamic thresholds */}
         <div className="mt-4 space-y-3">
-          {/* Color and size legend */}
+          {/* Color and size legend with dynamic thresholds */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <h4 className="text-sm font-medium text-gray-700 mb-2">Customer Density</h4>
               <div className="space-y-1">
-                <div className="flex items-center space-x-2 text-xs">
-                  <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
-                  <span>1-30 customers</span>
-                </div>
-                <div className="flex items-center space-x-2 text-xs">
-                  <div className="w-6 h-6 bg-yellow-500 rounded-full"></div>
-                  <span>31-80 customers</span>
-                </div>
-                <div className="flex items-center space-x-2 text-xs">
-                  <div className="w-8 h-8 bg-orange-500 rounded-full"></div>
-                  <span>81-150 customers</span>
-                </div>
-                <div className="flex items-center space-x-2 text-xs">
-                  <div className="w-10 h-10 bg-red-500 rounded-full"></div>
-                  <span>150+ customers</span>
-                </div>
+                {thresholds.length > 0 ? (
+                  <>
+                    <div className="flex items-center space-x-2 text-xs">
+                      <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
+                      <span>{formatNumber(thresholds[0])} - {formatNumber(thresholds[1])} customers</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-xs">
+                      <div className="w-6 h-6 bg-yellow-500 rounded-full"></div>
+                      <span>{formatNumber(thresholds[1])} - {formatNumber(thresholds[2])} customers</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-xs">
+                      <div className="w-8 h-8 bg-orange-500 rounded-full"></div>
+                      <span>{formatNumber(thresholds[2])} - {formatNumber(thresholds[3])} customers</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-xs">
+                      <div className="w-10 h-10 bg-red-500 rounded-full"></div>
+                      <span>{formatNumber(thresholds[3])} - {formatNumber(thresholds[4])} customers</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-xs text-gray-500">Loading thresholds...</div>
+                )}
               </div>
             </div>
 

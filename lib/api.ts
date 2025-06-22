@@ -14,6 +14,7 @@ import type {
   CreateUserRequest,
   ChangePasswordRequest,
   AdminChangePasswordRequest,
+  StatisticsResponse,
 } from "@/types"
 import { isAdminUser, isTokenExpired } from "./jwt-utils"
 
@@ -469,6 +470,59 @@ class ApiClient {
 
   async deleteProduct(id: string) {
     return this.fetchWithAuth(API_ENDPOINTS.INVENTORY.PRODUCT_BY_ID(id), { method: "DELETE" }, false, 1)
+  }
+
+  // Add a new method to fetch statistics
+  async getStatistics(): Promise<StatisticsResponse> {
+    return this.fetchWithAuth<StatisticsResponse>(
+      API_ENDPOINTS.SHOPPING.STATISTICS, 
+      { method: "GET" }, 
+      false, 
+      2
+    )
+  }
+  
+  // Add method to fetch customer locations
+  async getUserLocations() {
+    return this.fetchWithAuth<any[]>(
+      API_ENDPOINTS.SHOPPING.USER_LOCATIONS,
+      { method: "GET" },
+      false,
+      2
+    )
+  }
+
+  // Add method to upload images
+  async uploadImages(files: File[]): Promise<string[]> {
+    if (!files.length) return []
+    
+    const formData = new FormData()
+    files.forEach(file => {
+      formData.append('images', file)
+    })
+    
+    try {
+      const response = await fetch(API_ENDPOINTS.SHARED.UPLOAD_IMAGES, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          // Don't set Content-Type here as it's automatically set with boundary for multipart/form-data
+          ...this.getAuthHeaders(false),
+        },
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Upload failed with status: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      return data.urls
+    } catch (error) {
+      console.error('Error uploading images:', error)
+      handleApiError(error)
+      return []
+    }
   }
 }
 

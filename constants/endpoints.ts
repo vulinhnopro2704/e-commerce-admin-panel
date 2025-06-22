@@ -18,6 +18,8 @@ export const API_ENDPOINTS = {
     SALES_BY_CATEGORY: `${BASE_URL}/api/shopping/sales-by-category`,
     PRODUCTS: `${BASE_URL}/api/shopping/products`,
     PRODUCT_BY_ID: (id: string) => `${BASE_URL}/api/shopping/products/${id}`,
+    STATISTICS: `${BASE_URL}/api/orders/total-count-statistics`,
+    USER_LOCATIONS: `${BASE_URL}/api/orders/user-locations`,
   },
 
   // Inventory Service
@@ -25,6 +27,11 @@ export const API_ENDPOINTS = {
     CATEGORIES: `${BASE_URL}/api/inventory/categories`,
     PRODUCTS: `${BASE_URL}/api/inventory/products`,
     PRODUCT_BY_ID: (id: string) => `${BASE_URL}/api/inventory/products/${id}`,
+  },
+
+  // Shared Services
+  SHARED: {
+    UPLOAD_IMAGES: `${BASE_URL}/api/shared/uploads/images`,
   },
 } as const
 
