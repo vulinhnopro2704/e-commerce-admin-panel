@@ -1,34 +1,119 @@
 import { API_ENDPOINTS } from "@/constants/endpoints"
-import { useAuthStore } from "./auth"
-import type { PaginatedResponse, Product, ProductQueryParams } from "@/types"
+import type {
+  PaginatedResponse,
+  Product,
+  ProductQueryParams,
+  LoginRequest,
+  LoginResponse,
+  RefreshTokenResponse,
+} from "@/types"
+import { isAdminUser, isTokenExpired } from "./jwt-utils"
+
+// Utility functions for camelCase conversion
+function toCamel(s: string): string {
+  return s.charAt(0).toLowerCase() + s.slice(1)
+}
+
+function keysToCamel<T>(obj: any): T {
+  if (Array.isArray(obj)) return obj.map((v) => keysToCamel(v)) as any
+  if (obj !== null && obj.constructor === Object) {
+    return Object.entries(obj).reduce((acc, [key, value]) => {
+      acc[toCamel(key)] = keysToCamel(value)
+      return acc
+    }, {} as any) as T
+  }
+  return obj
+}
 
 class ApiClient {
-  private getAuthHeaders() {
-    const token = useAuthStore.getState().token
-    return {
+  private getTokens() {
+    if (typeof window === "undefined") return { accessToken: null, refreshToken: null }
+
+    const accessToken = localStorage.getItem("accessToken")
+    const refreshToken = localStorage.getItem("refreshToken")
+    return { accessToken, refreshToken }
+  }
+
+  private saveTokens(accessToken: string, refreshToken: string) {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("accessToken", accessToken)
+      localStorage.setItem("refreshToken", refreshToken)
+    }
+  }
+
+  private clearTokens() {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("accessToken")
+      localStorage.removeItem("refreshToken")
+    }
+  }
+
+  private getAuthHeaders(skipAuth = false) {
+    const headers: Record<string, string> = {
       Accept: "application/json, text/plain, */*",
       "Content-Type": "application/json",
-      // ngrok specific headers
       "ngrok-skip-browser-warning": "true",
       "User-Agent": "Mozilla/5.0 (compatible; Admin-Panel/1.0)",
-      ...(token && { Authorization: `Bearer ${token}` }),
     }
+
+    if (!skipAuth) {
+      const { accessToken } = this.getTokens()
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`
+      }
+    }
+
+    return headers
   }
 
-  // Mock delay to simulate API calls
-  private async mockDelay(ms = 500) {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-  }
+  private async refreshAccessToken(): Promise<string> {
+    const { refreshToken } = this.getTokens()
 
-  private async handleResponse(response: Response) {
-    console.log(`API Response: ${response.status} ${response.statusText}`)
-    console.log(`Content-Type: ${response.headers.get("content-type")}`)
+    if (!refreshToken) {
+      throw new Error("No refresh token available")
+    }
+
+    console.log("Refreshing access token...")
+
+    const response = await fetch(API_ENDPOINTS.IDENTITY.REFRESH_TOKEN, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+      },
+      body: JSON.stringify({ refreshToken }),
+    })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`HTTP Error ${response.status}:`, errorText)
-      throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
+      console.error("Token refresh failed:", response.status)
+      this.clearTokens()
+      if (typeof window !== "undefined") {
+        window.location.href = "/login"
+      }
+      throw new Error("Token refresh failed")
     }
+
+    const data: RefreshTokenResponse = await response.json()
+
+    // Validate the new access token
+    if (!isAdminUser(data.accessToken)) {
+      console.error("Refreshed token does not have admin role")
+      this.clearTokens()
+      if (typeof window !== "undefined") {
+        window.location.href = "/login"
+      }
+      throw new Error("Access denied: Admin role required")
+    }
+
+    this.saveTokens(data.accessToken, data.refreshToken)
+
+    console.log("Token refreshed successfully")
+    return data.accessToken
+  }
+
+  private async handleResponse<T>(response: Response): Promise<T> {
+    console.log(`API Response: ${response.status} ${response.statusText}`)
+    console.log(`Content-Type: ${response.headers.get("content-type")}`)
 
     const contentType = response.headers.get("content-type")
 
@@ -37,7 +122,7 @@ class ApiClient {
       const htmlContent = await response.text()
       console.error("Received HTML response:", htmlContent.substring(0, 200))
       throw new Error(
-        "Received HTML response instead of JSON. This might be due to ngrok verification page. Please visit the API URL in browser first to bypass the warning.",
+        "Received HTML response instead of JSON. Please visit the API URL in browser first to bypass ngrok verification.",
       )
     }
 
@@ -45,16 +130,27 @@ class ApiClient {
     const text = await response.text()
     console.log("Raw response:", text.substring(0, 200))
 
+    let data: any
     try {
-      return JSON.parse(text)
+      data = JSON.parse(text)
     } catch (e) {
       console.error("JSON Parse Error:", e)
       throw new Error(`Invalid JSON response: ${text.substring(0, 100)}...`)
     }
+
+    // Convert keys to camelCase
+    data = keysToCamel(data)
+
+    if (!response.ok) {
+      console.error(`HTTP Error ${response.status}:`, data)
+      throw new Error(`HTTP error! status: ${response.status} - ${data.msgNo || response.statusText}`)
+    }
+
+    return data as T
   }
 
-  async get(url: string, retries = 2) {
-    console.log(`Making GET request to: ${url}`)
+  private async fetchWithAuth<T>(url: string, options: RequestInit = {}, skipAuth = false, retries = 1): Promise<T> {
+    console.log(`Making ${options.method || "GET"} request to: ${url}`)
 
     for (let i = 0; i <= retries; i++) {
       try {
@@ -62,14 +158,47 @@ class ApiClient {
         const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
         const response = await fetch(url, {
-          method: "GET",
-          headers: this.getAuthHeaders(),
+          ...options,
+          headers: {
+            ...this.getAuthHeaders(skipAuth),
+            ...options.headers,
+          },
           signal: controller.signal,
-          mode: "cors", // Explicitly set CORS mode
+          mode: "cors",
         })
 
         clearTimeout(timeoutId)
-        return await this.handleResponse(response)
+
+        // Handle 401 Unauthorized - try to refresh token
+        if (response.status === 401 && !skipAuth) {
+          console.log("Received 401, attempting token refresh...")
+
+          try {
+            const newAccessToken = await this.refreshAccessToken()
+
+            // Retry the original request with new token
+            const retryResponse = await fetch(url, {
+              ...options,
+              headers: {
+                ...this.getAuthHeaders(false), // Use new token
+                ...options.headers,
+              },
+              signal: controller.signal,
+              mode: "cors",
+            })
+
+            return await this.handleResponse<T>(retryResponse)
+          } catch (refreshError) {
+            console.error("Token refresh failed:", refreshError)
+            this.clearTokens()
+            if (typeof window !== "undefined") {
+              window.location.href = "/login"
+            }
+            throw refreshError
+          }
+        }
+
+        return await this.handleResponse<T>(response)
       } catch (error) {
         console.error(`Attempt ${i + 1} failed:`, error)
 
@@ -82,7 +211,6 @@ class ApiClient {
         }
 
         if (i === retries) {
-          // Last retry failed
           console.error(`API call failed after ${retries + 1} attempts:`, error)
           throw error
         }
@@ -91,98 +219,48 @@ class ApiClient {
         await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)))
       }
     }
+
+    throw new Error("Unexpected error in fetchWithAuth")
   }
 
-  async post(url: string, data: any, retries = 1) {
-    console.log(`Making POST request to: ${url}`)
+  // Auth APIs
+  async login(credentials: LoginRequest): Promise<LoginResponse> {
+    console.log("Attempting login...")
 
-    for (let i = 0; i <= retries; i++) {
-      try {
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000)
+    const response = await this.fetchWithAuth<LoginResponse>(
+      API_ENDPOINTS.IDENTITY.LOGIN,
+      {
+        method: "POST",
+        body: JSON.stringify(credentials),
+      },
+      true, // Skip auth for login
+      2, // Retry up to 2 times
+    )
 
-        const response = await fetch(url, {
-          method: "POST",
-          headers: this.getAuthHeaders(),
-          body: JSON.stringify(data),
-          signal: controller.signal,
-          mode: "cors",
-        })
-
-        clearTimeout(timeoutId)
-        return await this.handleResponse(response)
-      } catch (error) {
-        console.error(`POST attempt ${i + 1} failed:`, error)
-
-        if (i === retries) {
-          console.error(`API call failed after ${retries + 1} attempts:`, error)
-          throw error
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)))
-      }
+    // Validate the access token before saving
+    if (!isAdminUser(response.token.accessToken)) {
+      throw new Error("Access denied: Admin role required")
     }
+
+    if (isTokenExpired(response.token.accessToken)) {
+      throw new Error("Received expired token")
+    }
+
+    // Save tokens after successful validation
+    this.saveTokens(response.token.accessToken, response.token.refreshToken)
+    console.log("Login successful, tokens saved")
+
+    return response
   }
 
-  async put(url: string, data: any, retries = 1) {
-    console.log(`Making PUT request to: ${url}`)
-
-    for (let i = 0; i <= retries; i++) {
-      try {
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000)
-
-        const response = await fetch(url, {
-          method: "PUT",
-          headers: this.getAuthHeaders(),
-          body: JSON.stringify(data),
-          signal: controller.signal,
-          mode: "cors",
-        })
-
-        clearTimeout(timeoutId)
-        return await this.handleResponse(response)
-      } catch (error) {
-        console.error(`PUT attempt ${i + 1} failed:`, error)
-
-        if (i === retries) {
-          console.error(`API call failed after ${retries + 1} attempts:`, error)
-          throw error
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)))
-      }
-    }
+  logout() {
+    console.log("Logging out...")
+    this.clearTokens()
   }
 
-  async delete(url: string, retries = 1) {
-    console.log(`Making DELETE request to: ${url}`)
-
-    for (let i = 0; i <= retries; i++) {
-      try {
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000)
-
-        const response = await fetch(url, {
-          method: "DELETE",
-          headers: this.getAuthHeaders(),
-          signal: controller.signal,
-          mode: "cors",
-        })
-
-        clearTimeout(timeoutId)
-        return await this.handleResponse(response)
-      } catch (error) {
-        console.error(`DELETE attempt ${i + 1} failed:`, error)
-
-        if (i === retries) {
-          console.error(`API call failed after ${retries + 1} attempts:`, error)
-          throw error
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)))
-      }
-    }
+  // Mock delay to simulate API calls
+  private async mockDelay(ms = 500) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
   // Dashboard APIs with dummy data
@@ -296,11 +374,19 @@ class ApiClient {
 
   // Category APIs - Real API calls with retry
   async getCategories() {
-    return this.get(API_ENDPOINTS.INVENTORY.CATEGORIES, 2) // Retry up to 2 times
+    return this.fetchWithAuth(API_ENDPOINTS.INVENTORY.CATEGORIES, { method: "GET" }, false, 2)
   }
 
   async createCategory(categoryData: any) {
-    return this.post(API_ENDPOINTS.INVENTORY.CATEGORIES, categoryData, 1)
+    return this.fetchWithAuth(
+      API_ENDPOINTS.INVENTORY.CATEGORIES,
+      {
+        method: "POST",
+        body: JSON.stringify(categoryData),
+      },
+      false,
+      1,
+    )
   }
 
   // Product APIs - Real API calls with retry
@@ -315,19 +401,39 @@ class ApiClient {
       })
     }
 
-    return this.get(url.toString(), 2) // Retry up to 2 times
+    return this.fetchWithAuth(url.toString(), { method: "GET" }, false, 2)
+  }
+
+  async getProductById(id: string): Promise<Product> {
+    return this.fetchWithAuth(API_ENDPOINTS.SHOPPING.PRODUCT_BY_ID(id), { method: "GET" }, false, 2)
   }
 
   async createProduct(productData: any) {
-    return this.post(API_ENDPOINTS.INVENTORY.PRODUCTS, productData, 1)
+    return this.fetchWithAuth(
+      API_ENDPOINTS.INVENTORY.PRODUCTS,
+      {
+        method: "POST",
+        body: JSON.stringify(productData),
+      },
+      false,
+      1,
+    )
   }
 
   async updateProduct(id: string, productData: any) {
-    return this.put(API_ENDPOINTS.INVENTORY.PRODUCT_BY_ID(id), productData, 1)
+    return this.fetchWithAuth(
+      API_ENDPOINTS.INVENTORY.PRODUCT_BY_ID(id),
+      {
+        method: "PUT",
+        body: JSON.stringify(productData),
+      },
+      false,
+      1,
+    )
   }
 
   async deleteProduct(id: string) {
-    return this.delete(API_ENDPOINTS.INVENTORY.PRODUCT_BY_ID(id), 1)
+    return this.fetchWithAuth(API_ENDPOINTS.INVENTORY.PRODUCT_BY_ID(id), { method: "DELETE" }, false, 1)
   }
 }
 

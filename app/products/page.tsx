@@ -8,35 +8,22 @@ import { motion } from "framer-motion"
 import { Plus, Edit, Trash2, Search, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import DataTable, { type Column } from "@/components/ui/data-table"
 import ConfirmationDialog from "@/components/ui/confirmation-dialog"
 import Header from "@/components/layout/header"
 import type { Product, ProductQueryParams, PaginatedResponse } from "@/types"
 import { apiClient } from "@/lib/api"
 import { useCategoriesStore } from "@/lib/categories-store"
-import ApiStatus from "@/components/ui/api-status"
-import ApiDebug from "@/components/ui/api-debug"
+import { useRouter } from "next/navigation"
 
 export default function ProductsPage() {
   const [productsResponse, setProductsResponse] = useState<PaginatedResponse<Product> | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [showDebug, setShowDebug] = useState(false)
 
   // Query parameters
   const [queryParams, setQueryParams] = useState<ProductQueryParams>({
@@ -46,24 +33,14 @@ export default function ProductsPage() {
     SortBy: "",
   })
 
-  // Categories store
+  const router = useRouter();
+
   const {
-    categories,
     fetchCategories,
     getCategoryById,
     getAllCategories,
     error: categoriesError,
   } = useCategoriesStore()
-
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    minPrice: "",
-    maxPrice: "",
-    categoryId: "",
-    stock: "",
-    status: "active" as "active" | "inactive",
-  })
 
   useEffect(() => {
     // Fetch categories first
@@ -133,69 +110,9 @@ export default function ProductsPage() {
 
   const handleOpenDialog = (product?: Product) => {
     if (product) {
-      setSelectedProduct(product)
-      setFormData({
-        name: product.name,
-        description: product.description || "",
-        minPrice: product.minPrice.toString(),
-        maxPrice: product.maxPrice.toString(),
-        categoryId: product.categoryId || "",
-        stock: product.stock?.toString() || "0",
-        status: product.status || "active",
-      })
+      router.push(`/products/create?id=${product.id}`)
     } else {
-      setSelectedProduct(null)
-      setFormData({
-        name: "",
-        description: "",
-        minPrice: "",
-        maxPrice: "",
-        categoryId: "",
-        stock: "",
-        status: "active",
-      })
-    }
-    setIsDialogOpen(true)
-  }
-
-  const handleCloseDialog = () => {
-    setIsDialogOpen(false)
-    setSelectedProduct(null)
-    setFormData({
-      name: "",
-      description: "",
-      minPrice: "",
-      maxPrice: "",
-      categoryId: "",
-      stock: "",
-      status: "active",
-    })
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsProcessing(true)
-
-    try {
-      const productData = {
-        ...formData,
-        minPrice: Number.parseFloat(formData.minPrice),
-        maxPrice: Number.parseFloat(formData.maxPrice),
-        stock: Number.parseInt(formData.stock),
-      }
-
-      if (selectedProduct) {
-        await apiClient.updateProduct(selectedProduct.id, productData)
-      } else {
-        await apiClient.createProduct(productData)
-      }
-
-      handleCloseDialog()
-      fetchProducts() // Refresh the list
-    } catch (error) {
-      console.error("Error saving product:", error)
-    } finally {
-      setIsProcessing(false)
+      router.push("/products/create")
     }
   }
 
@@ -330,20 +247,12 @@ export default function ProductsPage() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
         {/* Debug Tools */}
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowDebug(!showDebug)}>
-            {showDebug ? "Hide" : "Show"} Debug Tools
-          </Button>
           {categoriesError && (
             <Badge variant="destructive" className="text-xs">
               Categories Error: {categoriesError}
             </Badge>
           )}
         </div>
-
-        {showDebug && <ApiDebug />}
-
-        {/* API Status */}
-        <ApiStatus onRetry={fetchProducts} />
 
         {/* Filters */}
         <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
@@ -373,6 +282,27 @@ export default function ProductsPage() {
             </Select>
 
             <Select
+              value={queryParams.Condition || "all"}
+              onValueChange={(value) => {
+                setQueryParams((prev) => ({
+                  ...prev,
+                  Condition: value === "all" ? undefined : value,
+                  PageIndex: 1, // Reset to first page
+                }))
+              }}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="All Conditions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Conditions</SelectItem>
+                <SelectItem value="New">New</SelectItem>
+                <SelectItem value="LikeNew">Like New</SelectItem>
+                <SelectItem value="Used">Used</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
               value={`${queryParams.SortBy}-${queryParams.IsDescending}`}
               onValueChange={(value) => {
                 const [sortBy, isDesc] = value.split("-")
@@ -383,12 +313,15 @@ export default function ProductsPage() {
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="name-false">Name (A-Z)</SelectItem>
-                <SelectItem value="name-true">Name (Z-A)</SelectItem>
-                <SelectItem value="minPrice-false">Price (Low-High)</SelectItem>
-                <SelectItem value="minPrice-true">Price (High-Low)</SelectItem>
-                <SelectItem value="sold-true">Most Sold</SelectItem>
-                <SelectItem value="rating-true">Highest Rated</SelectItem>
+                <SelectItem value="CreatedAt-false">Newest First</SelectItem>
+                <SelectItem value="CreatedAt-true">Oldest First</SelectItem>
+                <SelectItem value="Price-false">Price (Low-High)</SelectItem>
+                <SelectItem value="Price-true">Price (High-Low)</SelectItem>
+                <SelectItem value="Rating-true">Highest Rated</SelectItem>
+                <SelectItem value="Rating-false">Lowest Rated</SelectItem>
+                <SelectItem value="Sold-true">Most Sold</SelectItem>
+                <SelectItem value="Sold-false">Least Sold</SelectItem>
+                <SelectItem value="TotalReviews-true">Most Reviewed</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -427,123 +360,6 @@ export default function ProductsPage() {
           }
         />
       </motion.div>
-
-      {/* Add/Edit Product Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{selectedProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
-            <DialogDescription>
-              {selectedProduct ? "Update the product information below." : "Create a new product for your store."}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Product Name</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Enter product name"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Enter product description"
-                rows={3}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="minPrice">Min Price ($)</Label>
-                <Input
-                  id="minPrice"
-                  type="number"
-                  step="0.01"
-                  value={formData.minPrice}
-                  onChange={(e) => setFormData({ ...formData, minPrice: e.target.value })}
-                  placeholder="0.00"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="maxPrice">Max Price ($)</Label>
-                <Input
-                  id="maxPrice"
-                  type="number"
-                  step="0.01"
-                  value={formData.maxPrice}
-                  onChange={(e) => setFormData({ ...formData, maxPrice: e.target.value })}
-                  placeholder="0.00"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <Select
-                  value={formData.categoryId}
-                  onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allCategories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="stock">Stock</Label>
-                <Input
-                  id="stock"
-                  type="number"
-                  value={formData.stock}
-                  onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                  placeholder="0"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(value: "active" | "inactive") => setFormData({ ...formData, status: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={handleCloseDialog} disabled={isProcessing}>
-                Cancel
-              </Button>
-              <Button type="submit" className="bg-purple-600 hover:bg-purple-700" disabled={isProcessing}>
-                {isProcessing ? "Saving..." : selectedProduct ? "Update" : "Create"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog

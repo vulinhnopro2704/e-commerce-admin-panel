@@ -16,10 +16,15 @@ export default function ClientLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, checkAuth } = useAuthStore()
   const { fetchCategories } = useCategoriesStore()
   const router = useRouter()
   const pathname = usePathname()
+
+  // Check auth status on app load
+  useEffect(() => {
+    checkAuth()
+  }, [checkAuth])
 
   useEffect(() => {
     if (!isAuthenticated && pathname !== "/login") {

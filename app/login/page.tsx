@@ -5,12 +5,13 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { Eye, EyeOff, LogIn } from "lucide-react"
+import { Eye, EyeOff, LogIn, AlertCircle } from "lucide-react"
 import { useAuthStore } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { DEFAULT_ADMIN_CREDENTIALS } from "@/constants/endpoints"
 
 export default function LoginPage() {
@@ -29,14 +30,16 @@ export default function LoginPage() {
     setError("")
 
     try {
-      const success = await login(email, password)
-      if (success) {
+      const result = await login(email, password)
+
+      if (result.success) {
         router.push("/")
       } else {
-        setError("Invalid credentials. Please try again.")
+        setError(result.error || "Login failed. Please try again.")
       }
     } catch (err) {
-      setError("An error occurred. Please try again.")
+      console.error("Login error:", err)
+      setError("An unexpected error occurred. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -56,7 +59,11 @@ export default function LoginPage() {
               <LogIn className="w-8 h-8 text-white" />
             </div>
             <CardTitle className="text-2xl font-bold text-gray-900">Admin Panel</CardTitle>
-            <CardDescription className="text-gray-600">Sign in to your admin account</CardDescription>
+            <CardDescription className="text-gray-600">
+              Sign in to your admin account
+              <br />
+              <span className="text-sm text-purple-600 font-medium">Admin access required</span>
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -96,12 +103,11 @@ export default function LoginPage() {
               </div>
 
               {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-red-600 text-sm text-center bg-red-50 p-2 rounded-md"
-                >
-                  {error}
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="text-sm">{error}</AlertDescription>
+                  </Alert>
                 </motion.div>
               )}
 
@@ -129,6 +135,7 @@ export default function LoginPage() {
                 <br />
                 Password: {DEFAULT_ADMIN_CREDENTIALS.password}
               </p>
+              <p className="text-xs text-purple-600 mt-2">⚠️ Only users with admin role can access this panel</p>
             </div>
           </CardContent>
         </Card>

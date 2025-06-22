@@ -8,12 +8,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import type { DashboardStats } from "@/types"
 import Header from "@/components/layout/header"
 import { apiClient } from "@/lib/api"
+import CustomerMap from "@/components/ui/customer-map"
 
 const COLORS = ["#8B5CF6", "#A78BFA", "#C4B5FD", "#DDD6FE", "#EDE9FE"]
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+
+  // Sample customer data for Vietnam cities
+  const customerLocations = [
+    { id: 1, lat: 21.0285, lng: 105.8542, count: 150, city: "Hà Nội", address: "Hoàn Kiếm, Hà Nội" },
+    { id: 2, lat: 10.8231, lng: 106.6297, count: 200, city: "TP.HCM", address: "Quận 1, TP.HCM" },
+    { id: 3, lat: 16.0544, lng: 108.2022, count: 80, city: "Đà Nẵng", address: "Hải Châu, Đà Nẵng" },
+    { id: 4, lat: 20.8449, lng: 106.6881, count: 60, city: "Hải Phòng", address: "Ngô Quyền, Hải Phòng" },
+    { id: 5, lat: 10.0452, lng: 105.7469, count: 90, city: "Cần Thơ", address: "Ninh Kiều, Cần Thơ" },
+    { id: 6, lat: 12.2585, lng: 109.0526, count: 45, city: "Nha Trang", address: "Nha Trang, Khánh Hòa" },
+    { id: 7, lat: 21.5937, lng: 105.8455, count: 35, city: "Thái Nguyên", address: "Thái Nguyên" },
+    { id: 8, lat: 18.3351, lng: 105.9069, count: 55, city: "Vinh", address: "Vinh, Nghệ An" },
+    { id: 9, lat: 11.9404, lng: 108.4583, count: 40, city: "Đà Lạt", address: "Đà Lạt, Lâm Đồng" },
+    { id: 10, lat: 13.7563, lng: 109.2177, count: 25, city: "Quy Nhon", address: "Quy Nhon, Bình Định" },
+  ]
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -182,8 +197,13 @@ export default function DashboardPage() {
         </motion.div>
       </div>
 
-      {/* Recent Activity */}
+      {/* Customer Distribution Map */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+        <CustomerMap customers={customerLocations} height="500px" />
+      </motion.div>
+
+      {/* Recent Activity - moved after map */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}>
         <Card>
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
