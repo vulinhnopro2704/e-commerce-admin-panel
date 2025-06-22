@@ -147,7 +147,6 @@ export default function DashboardPage() {
       // Update last updated time
       setLastUpdated(new Date());
     } catch (error) {
-      console.error("Error fetching dashboard data:", error);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);

@@ -28,8 +28,6 @@ export const useCategoriesStore = create<CategoriesStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null })
 
-      console.log("Fetching categories from:", API_ENDPOINTS.INVENTORY.CATEGORIES)
-
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
@@ -47,12 +45,8 @@ export const useCategoriesStore = create<CategoriesStore>((set, get) => ({
 
       clearTimeout(timeoutId)
 
-      console.log(`Categories API Response: ${response.status} ${response.statusText}`)
-      console.log(`Content-Type: ${response.headers.get("content-type")}`)
-
       if (!response.ok) {
         const errorText = await response.text()
-        console.error(`Categories API Error ${response.status}:`, errorText)
         throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
       }
 
@@ -61,28 +55,21 @@ export const useCategoriesStore = create<CategoriesStore>((set, get) => ({
       // Check if response is HTML (ngrok warning page)
       if (contentType && contentType.includes("text/html")) {
         const htmlContent = await response.text()
-        console.error("Received HTML response:", htmlContent.substring(0, 200))
         throw new Error(
           "Received HTML response instead of JSON. Please visit the API URL in browser first to bypass ngrok verification.",
         )
       }
 
       const responseText = await response.text()
-      console.log("Categories raw response:", responseText.substring(0, 200))
 
       let data
       try {
         data = JSON.parse(responseText)
       } catch (parseError) {
-        console.error("JSON Parse Error:", parseError)
         throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}...`)
       }
-
-      console.log("Categories data:", data)
       set({ categories: data, isLoading: false })
     } catch (error) {
-      console.error("Error fetching categories:", error)
-
       let errorMessage = "Failed to fetch categories"
       if (error instanceof Error) {
         if (error.name === "AbortError") {

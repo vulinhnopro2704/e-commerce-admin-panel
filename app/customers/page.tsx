@@ -42,7 +42,6 @@ export default function CustomersPage() {
       setUsers(response.data)
       setPagination(response.meta)
     } catch (error) {
-      console.error("Error fetching users:", error)
     } finally {
       setIsLoading(false)
     }
@@ -89,7 +88,6 @@ export default function CustomersPage() {
       setDialogType(null)
       setSelectedUser(null)
     } catch (error) {
-      console.error("Error deleting user:", error)
     } finally {
       setIsProcessing(false)
     }
@@ -106,7 +104,6 @@ export default function CustomersPage() {
       setDialogType(null)
       setSelectedUser(null)
     } catch (error) {
-      console.error("Error updating user status:", error)
     } finally {
       setIsProcessing(false)
     }

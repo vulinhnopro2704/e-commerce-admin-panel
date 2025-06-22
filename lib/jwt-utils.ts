@@ -23,7 +23,6 @@ interface JWTPayload {
       // Split the token into parts
       const parts = token.split(".")
       if (parts.length !== 3) {
-        console.error("Invalid JWT format")
         return null
       }
   
@@ -39,8 +38,6 @@ interface JWTPayload {
       // Parse JSON
       const claims: JWTPayload = JSON.parse(decodedPayload)
   
-      console.log("Decoded JWT claims:", claims)
-  
       // Extract user information using the Microsoft identity claim URIs
       const user: DecodedUser = {
         id: claims["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"],
@@ -51,7 +48,6 @@ interface JWTPayload {
   
       return user
     } catch (error) {
-      console.error("Error decoding JWT:", error)
       return null
     }
   }

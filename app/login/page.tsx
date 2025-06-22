@@ -38,7 +38,6 @@ export default function LoginPage() {
         setError(result.error || "Login failed. Please try again.")
       }
     } catch (err) {
-      console.error("Login error:", err)
       setError("An unexpected error occurred. Please try again.")
     } finally {
       setIsLoading(false)

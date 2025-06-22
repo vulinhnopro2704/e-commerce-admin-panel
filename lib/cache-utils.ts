@@ -18,7 +18,6 @@ export const cacheUtils = {
       };
       localStorage.setItem(key, JSON.stringify(cacheItem));
     } catch (error) {
-      console.error('Error setting cache:', error);
     }
   },
 
@@ -35,7 +34,6 @@ export const cacheUtils = {
       
       return isExpired ? null : cacheItem.data;
     } catch (error) {
-      console.error('Error getting cache:', error);
       return null;
     }
   },

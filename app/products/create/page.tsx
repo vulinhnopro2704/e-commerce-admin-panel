@@ -76,7 +76,6 @@ export default function CreateProductPage() {
         condition: product.condition || "New",
       })
     } catch (error) {
-      console.error("Error fetching product:", error)
       setError("Failed to load product data. Please try again.")
       toast({
         title: "Error",
@@ -105,7 +104,6 @@ export default function CreateProductPage() {
 
       return uploadedUrls
     } catch (error) {
-      console.error("Error uploading images:", error)
       toast({
         title: "Upload Failed",
         description: "Failed to upload images. Please try again.",
@@ -237,7 +235,6 @@ export default function CreateProductPage() {
 
       router.push("/products")
     } catch (error) {
-      console.error("Error saving product:", error)
       setError("Failed to save product. Please try again.")
       toast({
         title: "Error",

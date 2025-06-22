@@ -11,8 +11,6 @@ interface ApiError {
 }
 
 export function handleApiError(error: unknown) {
-  console.error("API Error:", error)
-  
   // Default error message
   let title = "An error occurred"
   let description = "Please try again later"
@@ -65,7 +63,6 @@ export function handleApiError(error: unknown) {
       }
     }
   } catch (parsingError) {
-    console.error("Error parsing API error:", parsingError)
   }
   
   // Show toast notification

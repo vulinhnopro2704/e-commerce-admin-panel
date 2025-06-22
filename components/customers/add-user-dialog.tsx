@@ -88,7 +88,6 @@ export default function AddUserDialog({ isOpen, onClose, onSuccess }: AddUserDia
         confirmPassword: "",
       })
     } catch (error) {
-      console.error("Error creating user:", error)
       // Error toast will be shown by global handler
       
       // Update form errors if we have validation errors

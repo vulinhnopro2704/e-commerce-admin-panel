@@ -80,7 +80,6 @@ export default function CategoriesPage() {
       await fetchCategories()
       handleCloseDialog()
     } catch (error) {
-      console.error("Error saving category:", error)
     } finally {
       setIsProcessing(false)
     }
@@ -95,7 +94,6 @@ export default function CategoriesPage() {
       await fetchCategories()
       setSelectedCategory(null)
     } catch (error) {
-      console.error("Error deleting category:", error)
     } finally {
       setIsProcessing(false)
     }
@@ -137,7 +135,6 @@ export default function CategoriesPage() {
           onRefresh={fetchCategories}
           onSearch={(query: string) => {
             // Implement search functionality
-            console.log("Search:", query)
           }}
           onAdd={handleAddCategory}
           emptyState={

@@ -57,7 +57,6 @@ export default function ProductsPage() {
       const response = await apiClient.getProducts(queryParams)
       setProductsResponse(response)
     } catch (error) {
-      console.error("Error fetching products:", error)
 
       // Show user-friendly error message
       if (error instanceof Error) {
@@ -126,7 +125,6 @@ export default function ProductsPage() {
       setSelectedProduct(null)
       fetchProducts() // Refresh the list
     } catch (error) {
-      console.error("Error deleting product:", error)
     } finally {
       setIsProcessing(false)
     }

@@ -16,7 +16,6 @@ export default function ApiDebug() {
     const startTime = Date.now()
 
     try {
-      console.log(`Testing ${name}: ${url}`)
 
       const response = await fetch(url, {
         method: "GET",

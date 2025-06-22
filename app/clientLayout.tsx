@@ -24,26 +24,15 @@ export default function ClientLayout({
   // Check auth status on app load with better error handling
   useEffect(() => {
     try {
-      console.log("ClientLayout - Checking authentication state")
       checkAuth()
-      console.log(
-        "ClientLayout - Auth check complete, isAuthenticated:",
-        isAuthenticated
-      )
     } catch (error) {
-      console.error("Error during authentication check:", error)
     }
   }, [checkAuth])
 
   useEffect(() => {
     if (!isAuthenticated && pathname !== "/login") {
-      console.log(
-        "Not authenticated, redirecting to login page from:",
-        pathname
-      )
       router.push("/login")
     } else if (isAuthenticated && pathname === "/login") {
-      console.log("Already authenticated, redirecting to dashboard")
       router.push("/")
     }
   }, [isAuthenticated, pathname, router])
