@@ -12,8 +12,8 @@ export const API_ENDPOINTS = {
   // Shopping Service
   SHOPPING: {
     DASHBOARD: `${BASE_URL}/api/sale-dashboard`,
-    MOST_SOLD_PRODUCTS: `${BASE_URL}/api/most-sold-products`,
-    SALES_BY_CATEGORY: `${BASE_URL}/api/sales-by-category`,
+    MOST_SOLD_PRODUCTS: `${BASE_URL}/api/shopping/most-sold-products`,
+    SALES_BY_CATEGORY: `${BASE_URL}/api/shopping/sales-by-category`,
     PRODUCTS: `${BASE_URL}/api/shopping/products`,
     PRODUCT_BY_ID: (id: string) => `${BASE_URL}/api/shopping/products/${id}`,
   },

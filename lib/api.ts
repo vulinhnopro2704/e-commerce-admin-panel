@@ -6,6 +6,8 @@ import type {
   LoginRequest,
   LoginResponse,
   RefreshTokenResponse,
+  MostSoldProduct,
+  CategorySales,
 } from "@/types"
 import { isAdminUser, isTokenExpired } from "./jwt-utils"
 
@@ -265,7 +267,9 @@ class ApiClient {
 
   // Dashboard APIs with dummy data
   async getDashboardStats() {
-    await this.mockDelay()
+    // Get real most sold products data
+    const mostSoldProducts = await this.getMostSoldProducts()
+
     return {
       totalUsers: 1250,
       totalProducts: 340,
@@ -278,36 +282,16 @@ class ApiClient {
         { category: "Home & Garden", sales: 25000 },
         { category: "Sports", sales: 15000 },
       ],
-      mostSoldProducts: [
-        { product: "iPhone 15", quantity: 120 },
-        { product: "MacBook Pro", quantity: 85 },
-        { product: "AirPods", quantity: 200 },
-        { product: "iPad", quantity: 95 },
-        { product: "Apple Watch", quantity: 150 },
-      ],
+      mostSoldProducts: mostSoldProducts,
     }
   }
 
-  async getMostSoldProducts() {
-    await this.mockDelay()
-    return [
-      { product: "iPhone 15", quantity: 120 },
-      { product: "MacBook Pro", quantity: 85 },
-      { product: "AirPods", quantity: 200 },
-      { product: "iPad", quantity: 95 },
-      { product: "Apple Watch", quantity: 150 },
-    ]
+  async getMostSoldProducts(): Promise<MostSoldProduct[]> {
+    return this.fetchWithAuth<MostSoldProduct[]>(API_ENDPOINTS.SHOPPING.MOST_SOLD_PRODUCTS, { method: "GET" }, false, 2)
   }
 
   async getSalesByCategory() {
-    await this.mockDelay()
-    return [
-      { category: "Electronics", sales: 45000 },
-      { category: "Clothing", sales: 32000 },
-      { category: "Books", sales: 18000 },
-      { category: "Home & Garden", sales: 25000 },
-      { category: "Sports", sales: 15000 },
-    ]
+    return this.fetchWithAuth<CategorySales[]>(API_ENDPOINTS.SHOPPING.SALES_BY_CATEGORY, { method: "GET" }, false, 2)
   }
 
   // User APIs with dummy data
@@ -437,4 +421,4 @@ class ApiClient {
   }
 }
 
-export const apiClient = new ApiClient()
+export const apiClient = new ApiClient();

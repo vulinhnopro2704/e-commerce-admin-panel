@@ -43,10 +43,18 @@ export interface DashboardStats {
     category: string
     sales: number
   }>
-  mostSoldProducts: Array<{
-    product: string
-    quantity: number
-  }>
+  mostSoldProducts: MostSoldProduct[]
+}
+
+export interface MostSoldProduct {
+  id: string
+  name: string
+  minPrice: number
+  maxPrice: number
+  sold: number
+  rating: number
+  categoryId: string
+  imageUrl: string
 }
 
 export interface AuthState {
@@ -150,4 +158,10 @@ export interface BaseResponse<T> {
   msgNo: string
   listError: Record<string, string>
   data: T
+}
+
+export interface CategorySales {
+  id: string;
+  name: string;
+  sold: number;
 }
