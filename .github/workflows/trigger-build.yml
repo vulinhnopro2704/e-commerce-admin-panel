@@ -9,23 +9,30 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # 1. Checkout nhưng không cấp GITHUB_TOKEN tự động
       - uses: actions/checkout@v3
+        with:
+          persist-credentials: false  # <-- tắt GITHUB_TOKEN
 
+      # 2. Nếu PR thì checkout branch PR
       - name: Checkout PR
         if: github.event_name == 'pull_request'
         run: gh pr checkout ${{ github.event.pull_request.number }}
 
+      # 3. Thiết lập git user
       - name: Configure git user
         run: |
           git config user.email "vulinhtruong79@gmail.com"
           git config user.name "vulinhnopro2704"
 
+      # 4. Đổi remote về HTTPS có PAT
       - name: Set remote with PAT
         env:
-          PAT: ${{ secrets.PERSONAL_PAT }}
+          PAT: ${{ secrets.PERSONAL_PAT }}   # <-- secret chứa PAT bạn tạo
         run: |
           git remote set-url origin https://x-access-token:${PAT}@github.com/${{ github.repository }}.git
 
+      # 5. Commit empty và push qua PAT
       - name: Trigger build
         env:
           PAT: ${{ secrets.PERSONAL_PAT }}
