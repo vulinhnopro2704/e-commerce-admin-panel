@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import DataTable, { type Column } from "@/components/ui/data-table"
 import ConfirmationDialog from "@/components/ui/confirmation-dialog"
+import AddUserDialog from "@/components/customers/add-user-dialog"
 import Header from "@/components/layout/header"
-import type { User } from "@/types"
+import type { PaginationMeta, User, UserQueryParams } from "@/types"
 import { apiClient } from "@/lib/api"
 
 export default function CustomersPage() {
@@ -16,22 +17,66 @@ export default function CustomersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [dialogType, setDialogType] = useState<"delete" | "disable" | null>(null)
+  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
+  const [pagination, setPagination] = useState<PaginationMeta>({
+    pageIndex: 1,
+    totalPages: 0,
+    totalCount: 0,
+    pageSize: 10
+  })
+  const [queryParams, setQueryParams] = useState<UserQueryParams>({
+    PageIndex: 1,
+    PageSize: 10
+  })
 
   useEffect(() => {
     fetchUsers()
-  }, [])
+  }, [queryParams])
 
   const fetchUsers = async () => {
     try {
       setIsLoading(true)
-      const userData = await apiClient.getUsers()
-      setUsers(userData)
+      const response = await apiClient.getUsers(queryParams)
+      setUsers(response.data)
+      setPagination(response.meta)
     } catch (error) {
       console.error("Error fetching users:", error)
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleSearch = (query: string) => {
+    setQueryParams({
+      ...queryParams,
+      Keyword: query,
+      PageIndex: 1 // Reset to first page on new search
+    })
+  }
+
+  const handlePageChange = (pageIndex: number) => {
+    setQueryParams({
+      ...queryParams,
+      PageIndex: pageIndex
+    })
+  }
+
+  const handleSort = (sortKey: string, isDescending: boolean) => {
+    // Update the sort configuration for UI
+    setSortConfig({
+      key: sortKey.toLowerCase(), // Store lowercase for UI matching
+      direction: isDescending ? "desc" : "asc"
+    })
+    
+    // Update query params for API
+    setQueryParams({
+      ...queryParams,
+      SortBy: sortKey, // API expects PascalCase
+      IsDescending: isDescending,
+      PageIndex: 1 // Reset to first page on sort change
+    })
   }
 
   const handleDeleteUser = async () => {
@@ -40,7 +85,7 @@ export default function CustomersPage() {
     try {
       setIsProcessing(true)
       await apiClient.deleteUser(selectedUser.id)
-      setUsers(users.filter((user) => user.id !== selectedUser.id))
+      fetchUsers() // Refresh list after deletion
       setDialogType(null)
       setSelectedUser(null)
     } catch (error) {
@@ -55,9 +100,9 @@ export default function CustomersPage() {
 
     try {
       setIsProcessing(true)
-      const newStatus = selectedUser.status === "active" ? "disabled" : "active"
-      // In real app, you'd call an API to update user status
-      setUsers(users.map((user) => (user.id === selectedUser.id ? { ...user, status: newStatus } : user)))
+      // In a real app, you would call an appropriate API to disable/enable the user
+      // For now, just refresh the list
+      fetchUsers()
       setDialogType(null)
       setSelectedUser(null)
     } catch (error) {
@@ -72,6 +117,7 @@ export default function CustomersPage() {
       key: "name",
       header: "Name",
       sortable: true,
+      sortKey: "Name", // API field name
       render: (user) => (
         <div>
           <div className="font-medium text-gray-900">{user.name}</div>
@@ -80,19 +126,35 @@ export default function CustomersPage() {
       ),
     },
     {
-      key: "role",
-      header: "Role",
-      render: (user) => <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role}</Badge>,
+      key: "email",
+      header: "Email",
+      sortable: true,
+      sortKey: "Email", // API field name
+      render: (user) => <div className="text-sm text-gray-500">{user.email}</div>,
+    },
+    {
+      key: "emailConfirmed",
+      header: "Email Status",
+      render: (user) => (
+        <Badge variant={user.emailConfirmed ? "default" : "secondary"}>
+          {user.emailConfirmed ? "Verified" : "Unverified"}
+        </Badge>
+      ),
     },
     {
       key: "status",
       header: "Status",
-      render: (user) => <Badge variant={user.status === "active" ? "default" : "destructive"}>{user.status}</Badge>,
+      render: (user) => (
+        <Badge variant={!user.deletedAt ? "default" : "destructive"}>
+          {!user.deletedAt ? "Active" : "Deleted"}
+        </Badge>
+      ),
     },
     {
       key: "createdAt",
       header: "Created",
       sortable: true,
+      sortKey: "CreatedAt", // API field name
       render: (user) => new Date(user.createdAt).toLocaleDateString(),
     },
     {
@@ -109,7 +171,7 @@ export default function CustomersPage() {
             }}
             className="text-orange-600 hover:text-orange-700"
           >
-            {user.status === "active" ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+            {!user.deletedAt ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
           </Button>
           <Button
             variant="ghost"
@@ -139,12 +201,20 @@ export default function CustomersPage() {
           keyExtractor={(user) => user.id}
           isLoading={isLoading}
           onRefresh={fetchUsers}
-          onSearch={(query) => {
-            // Implement search functionality
-            console.log("Search:", query)
+          onSearch={handleSearch}
+          onSort={handleSort}
+          sortConfig={sortConfig}
+          pagination={{
+            currentPage: pagination.pageIndex,
+            totalPages: pagination.totalPages,
+            totalItems: pagination.totalCount,
+            onPageChange: handlePageChange
           }}
           actions={
-            <Button className="bg-purple-600 hover:bg-purple-700">
+            <Button 
+              className="bg-purple-600 hover:bg-purple-700"
+              onClick={() => setIsAddUserDialogOpen(true)}
+            >
               <Plus className="w-4 h-4 mr-2" />
               Add Customer
             </Button>
@@ -156,6 +226,13 @@ export default function CustomersPage() {
           }
         />
       </motion.div>
+
+      {/* Add User Dialog */}
+      <AddUserDialog 
+        isOpen={isAddUserDialogOpen}
+        onClose={() => setIsAddUserDialogOpen(false)}
+        onSuccess={fetchUsers}
+      />
 
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
@@ -180,9 +257,9 @@ export default function CustomersPage() {
           setSelectedUser(null)
         }}
         onConfirm={handleToggleUserStatus}
-        title={selectedUser?.status === "active" ? "Disable Customer" : "Enable Customer"}
-        message={`Are you sure you want to ${selectedUser?.status === "active" ? "disable" : "enable"} ${selectedUser?.name}?`}
-        confirmText={selectedUser?.status === "active" ? "Disable" : "Enable"}
+        title={!selectedUser?.deletedAt ? "Disable Customer" : "Enable Customer"}
+        message={`Are you sure you want to ${!selectedUser?.deletedAt ? "disable" : "enable"} ${selectedUser?.name}?`}
+        confirmText={!selectedUser?.deletedAt ? "Disable" : "Enable"}
         type="warning"
         isLoading={isProcessing}
       />

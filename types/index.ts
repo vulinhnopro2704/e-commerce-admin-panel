@@ -2,10 +2,19 @@ export interface User {
   id: string
   email: string
   name: string
-  role: "admin" | "user"
-  status: "active" | "disabled"
+  phoneNumber?: string | null
+  emailConfirmed?: boolean
+  phoneNumberConfirmed?: boolean
+  avatarUrl?: string | null
+  coverUrl?: string | null
+  role?: "admin" | "user"
+  status?: "active" | "disabled"
   createdAt: string
-  updatedAt: string
+  createdBy?: string
+  updatedAt?: string | null
+  updatedBy?: string | null
+  deletedAt?: string | null
+  deletedBy?: string | null
 }
 
 export interface Category {
@@ -164,4 +173,33 @@ export interface CategorySales {
   id: string;
   name: string;
   sold: number;
+}
+
+// User Query Parameters
+export interface UserQueryParams {
+  Keyword?: string
+  PageIndex?: number
+  PageSize?: number
+  IsDescending?: boolean
+  SortBy?: string
+}
+
+// User API Types
+export interface CreateUserRequest {
+  id: string
+  name: string
+  email: string
+  password: string
+  confirmPassword: string
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
+export interface AdminChangePasswordRequest {
+  password: string
+  confirmPassword: string
 }

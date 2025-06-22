@@ -1,4 +1,5 @@
 import { API_ENDPOINTS } from "@/constants/endpoints"
+import { handleApiError } from "./error-utils"
 import type {
   PaginatedResponse,
   Product,
@@ -8,6 +9,11 @@ import type {
   RefreshTokenResponse,
   MostSoldProduct,
   CategorySales,
+  User,
+  UserQueryParams,
+  CreateUserRequest,
+  ChangePasswordRequest,
+  AdminChangePasswordRequest,
 } from "@/types"
 import { isAdminUser, isTokenExpired } from "./jwt-utils"
 
@@ -145,7 +151,19 @@ class ApiClient {
 
     if (!response.ok) {
       console.error(`HTTP Error ${response.status}:`, data)
-      throw new Error(`HTTP error! status: ${response.status} - ${data.msgNo || response.statusText}`)
+      // Create an error object with the response data
+      const errorData = {
+        ...data,
+        status: response.status,
+        statusText: response.statusText,
+      }
+      
+      // Format the error message
+      const errorMessage = `${response.status} ${data.title || response.statusText}`
+      const error = new Error(errorMessage)
+      // Attach the error data to the error object
+      Object.assign(error, { responseData: errorData })
+      throw error
     }
 
     return data as T
@@ -203,6 +221,11 @@ class ApiClient {
         return await this.handleResponse<T>(response)
       } catch (error) {
         console.error(`Attempt ${i + 1} failed:`, error)
+
+        // Show toast for error (but not for retries unless it's the last one)
+        if (i === retries) {
+          handleApiError(error)
+        }
 
         if (error instanceof Error) {
           if (error.name === "AbortError") {
@@ -294,66 +317,73 @@ class ApiClient {
     return this.fetchWithAuth<CategorySales[]>(API_ENDPOINTS.SHOPPING.SALES_BY_CATEGORY, { method: "GET" }, false, 2)
   }
 
-  // User APIs with dummy data
-  async getUsers(params?: Record<string, string>) {
-    await this.mockDelay()
-    return [
-      {
-        id: "1",
-        email: "john.doe@example.com",
-        name: "John Doe",
-        role: "user",
-        status: "active",
-        createdAt: "2024-01-15T10:30:00Z",
-        updatedAt: "2024-01-15T10:30:00Z",
-      },
-      {
-        id: "2",
-        email: "jane.smith@example.com",
-        name: "Jane Smith",
-        role: "user",
-        status: "active",
-        createdAt: "2024-01-14T09:15:00Z",
-        updatedAt: "2024-01-14T09:15:00Z",
-      },
-      {
-        id: "3",
-        email: "admin@123",
-        name: "Admin User",
-        role: "admin",
-        status: "active",
-        createdAt: "2024-01-01T00:00:00Z",
-        updatedAt: "2024-01-01T00:00:00Z",
-      },
-    ]
+  // User APIs with real API integration
+  async getUsers(params?: UserQueryParams): Promise<PaginatedResponse<User>> {
+    const url = new URL(API_ENDPOINTS.IDENTITY.USERS)
+
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          url.searchParams.append(key, value.toString())
+        }
+      })
+    }
+
+    return this.fetchWithAuth<PaginatedResponse<User>>(url.toString(), { method: "GET" }, false, 2)
   }
 
-  async createUser(userData: any) {
-    await this.mockDelay()
-    return {
-      id: Date.now().toString(),
-      ...userData,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
+  async createUser(userData: CreateUserRequest) {
+    return this.fetchWithAuth<User>(
+      API_ENDPOINTS.IDENTITY.USERS,
+      {
+        method: "POST",
+        body: JSON.stringify(userData),
+      },
+      false,
+      1
+    )
   }
 
   async getUserById(id: string) {
-    await this.mockDelay()
-    return {
-      id,
-      email: "user@example.com",
-      name: "Sample User",
-      role: "user",
-      status: "active",
-      createdAt: "2024-01-15T10:30:00Z",
-      updatedAt: "2024-01-15T10:30:00Z",
-    }
+    return this.fetchWithAuth<User>(
+      API_ENDPOINTS.IDENTITY.USER_BY_ID(id),
+      { method: "GET" },
+      false,
+      2
+    )
   }
 
   async deleteUser(id: string) {
-    await this.mockDelay()
-    return { success: true }
+    return this.fetchWithAuth(
+      API_ENDPOINTS.IDENTITY.USER_BY_ID(id),
+      { method: "DELETE" },
+      false,
+      1
+    )
+  }
+
+  async changeMyPassword(passwordData: ChangePasswordRequest) {
+    return this.fetchWithAuth(
+      API_ENDPOINTS.IDENTITY.CHANGE_MY_PASSWORD,
+      {
+        method: "PUT",
+        body: JSON.stringify(passwordData),
+      },
+      false,
+      1
+    )
+  }
+
+  async changeUserPassword(userId: string, passwordData: AdminChangePasswordRequest) {
+    return this.fetchWithAuth(
+      API_ENDPOINTS.IDENTITY.CHANGE_USER_PASSWORD(userId),
+      {
+        method: "PUT",
+        body: JSON.stringify(passwordData),
+      },
+      false,
+      1
+    )
   }
 
   // Category APIs - Real API calls with retry

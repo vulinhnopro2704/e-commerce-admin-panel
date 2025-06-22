@@ -7,6 +7,8 @@ export const API_ENDPOINTS = {
     USERS: `${BASE_URL}/api/identity/users`,
     REFRESH_TOKEN: `${BASE_URL}/api/identity/auth/refresh-token`,
     USER_BY_ID: (id: string) => `${BASE_URL}/api/identity/users/${id}`,
+    CHANGE_MY_PASSWORD: `${BASE_URL}/api/identity/users/me/change-password`,
+    CHANGE_USER_PASSWORD: (id: string) => `${BASE_URL}/api/identity/users/${id}/change-password`,
   },
 
   // Shopping Service

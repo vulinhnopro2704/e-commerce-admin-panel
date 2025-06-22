@@ -4,7 +4,7 @@ import type React from "react"
 
 import { motion } from "framer-motion"
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Filter, RefreshCw, Search } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 
 export interface Column<T> {
   key: string
@@ -12,6 +12,7 @@ export interface Column<T> {
   render?: (item: T) => React.ReactNode
   sortable?: boolean
   width?: string
+  sortKey?: string // Optional API sort key if different from column key
 }
 
 interface DataTableProps<T> {
@@ -29,6 +30,8 @@ interface DataTableProps<T> {
   onRefresh?: () => void
   onSearch?: (query: string) => void
   onFilter?: () => void
+  onSort?: (sortKey: string, isDescending: boolean) => void // New prop for handling sorting
+  sortConfig?: { key: string; direction: "asc" | "desc" } | null // External sort config
   emptyState?: React.ReactNode
 }
 
@@ -42,13 +45,25 @@ export default function DataTable<T extends Record<string, any>>({
   onRefresh,
   onSearch,
   onFilter,
+  onSort,
+  sortConfig: externalSortConfig,
   emptyState,
 }: DataTableProps<T>) {
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
+  const [internalSortConfig, setInternalSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
 
+  // Use external sort config if provided, otherwise use internal
+  const sortConfig = externalSortConfig || internalSortConfig
+
+  // Effect to update internal state when external state changes
+  useEffect(() => {
+    if (externalSortConfig !== undefined) {
+      setInternalSortConfig(externalSortConfig);
+    }
+  }, [externalSortConfig]);
+
   const sortedData = useMemo(() => {
-    if (!sortConfig) return data
+    if (!sortConfig || onSort) return data // If onSort is provided, assume external sorting
 
     return [...data].sort((a, b) => {
       const aValue = a[sortConfig.key]
@@ -59,14 +74,26 @@ export default function DataTable<T extends Record<string, any>>({
       const compareResult = aValue < bValue ? -1 : 1
       return sortConfig.direction === "asc" ? compareResult : -compareResult
     })
-  }, [data, sortConfig])
+  }, [data, sortConfig, onSort])
 
-  const handleSort = (key: string) => {
+  const handleSort = (column: Column<T>) => {
+    if (!column.sortable) return
+
+    const key = column.key
+    const sortKey = column.sortKey || key
+
     let direction: "asc" | "desc" = "asc"
     if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
       direction = "desc"
     }
-    setSortConfig({ key, direction })
+
+    if (onSort) {
+      // Call external sort handler with appropriate parameters
+      onSort(sortKey, direction === "desc")
+    } else {
+      // Otherwise use internal sorting
+      setInternalSortConfig({ key, direction })
+    }
   }
 
   const handleSearch = (e: React.FormEvent) => {
@@ -135,11 +162,11 @@ export default function DataTable<T extends Record<string, any>>({
                       column.sortable && "cursor-pointer hover:bg-purple-100",
                       column.width,
                     )}
-                    onClick={() => column.sortable && handleSort(column.key)}
+                    onClick={() => column.sortable && handleSort(column)}
                     onKeyDown={(e) => {
                       if (column.sortable && (e.key === "Enter" || e.key === " ")) {
                         e.preventDefault()
-                        handleSort(column.key)
+                        handleSort(column)
                       }
                     }}
                     tabIndex={column.sortable ? 0 : -1}
