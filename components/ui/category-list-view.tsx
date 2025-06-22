@@ -136,14 +136,3 @@ const CategoryListView: React.FC<CategoryListViewProps> = ({
 }
 
 export default CategoryListView
-            onAdd={onAdd}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-export default CategoryListView
