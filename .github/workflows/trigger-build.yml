@@ -2,38 +2,47 @@ name: Trigger build
 
 on:
   push:
-    branches: ['main', 'develop']
-  pull_request:
+    branches: ['main']
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1. Checkout nhưng không cấp GITHUB_TOKEN tự động
+      # Kiểm tra commit message
+      - name: Check commit message
+        id: check_commit
+        run: |
+          echo "Checking last commit message..."
+          if [[ "${{ github.event.head_commit.message }}" == "Trigger Build" ]]; then
+            echo "SKIP_TRIGGER=true" >> $GITHUB_ENV
+            echo "Skipping trigger as this is already a trigger commit"
+          else
+            echo "SKIP_TRIGGER=false" >> $GITHUB_ENV
+          fi
+
+      # Chỉ tiếp tục nếu không phải commit "Trigger Build"
       - uses: actions/checkout@v3
+        if: env.SKIP_TRIGGER == 'false'
         with:
-          persist-credentials: false  # <-- tắt GITHUB_TOKEN
+          persist-credentials: false
 
-      # 2. Nếu PR thì checkout branch PR
-      - name: Checkout PR
-        if: github.event_name == 'pull_request'
-        run: gh pr checkout ${{ github.event.pull_request.number }}
+      # Loại bỏ bước Checkout PR vì chỉ xử lý push
 
-      # 3. Thiết lập git user
       - name: Configure git user
+        if: env.SKIP_TRIGGER == 'false'
         run: |
           git config user.email "vulinhtruong79@gmail.com"
           git config user.name "vulinhnopro2704"
 
-      # 4. Đổi remote về HTTPS có PAT
       - name: Set remote with PAT
+        if: env.SKIP_TRIGGER == 'false'
         env:
-          PAT: ${{ secrets.PERSONAL_PAT }}   # <-- secret chứa PAT bạn tạo
+          PAT: ${{ secrets.PERSONAL_PAT }}
         run: |
           git remote set-url origin https://x-access-token:${PAT}@github.com/${{ github.repository }}.git
 
-      # 5. Commit empty và push qua PAT
       - name: Trigger build
+        if: env.SKIP_TRIGGER == 'false'
         env:
           PAT: ${{ secrets.PERSONAL_PAT }}
         run: |
