@@ -211,15 +211,6 @@ export default function ProductsPage() {
       key: "actions",
       header: "Actions",
       render: (product) => (
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleOpenDialog(product)}
-            className="text-purple-600 hover:text-purple-700"
-          >
-            <Edit className="w-4 h-4" />
-          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -231,7 +222,6 @@ export default function ProductsPage() {
           >
             <Trash2 className="w-4 h-4" />
           </Button>
-        </div>
       ),
     },
   ]
