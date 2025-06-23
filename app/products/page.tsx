@@ -5,7 +5,7 @@ import { Package } from "lucide-react" // Import Package here
 
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
-import { Plus, Edit, Trash2, Search, RefreshCw } from "lucide-react"
+import { Plus, Trash2, Search, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
