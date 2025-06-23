@@ -428,7 +428,7 @@ class ApiClient {
       API_ENDPOINTS.INVENTORY.PRODUCTS,
       {
         method: "POST",
-        body: JSON.stringify(productData),
+        body: JSON.stringify({...productData, id: "123"}),
       },
       false,
       1,
@@ -481,14 +481,21 @@ class ApiClient {
     })
     
     try {
+      // Get authorization headers but exclude Content-Type
+      const headers: Record<string, string> = {
+        'ngrok-skip-browser-warning': 'true',
+      }
+      
+      // Add authentication
+      const { accessToken } = this.getTokens()
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`
+      }
+      
       const response = await fetch(API_ENDPOINTS.SHARED.UPLOAD_IMAGES, {
         method: 'POST',
         body: formData,
-        headers: {
-          'ngrok-skip-browser-warning': 'true',
-          // Don't set Content-Type here as it's automatically set with boundary for multipart/form-data
-          ...this.getAuthHeaders(false),
-        },
+        headers: headers, // Using our custom headers without Content-Type
       })
       
       if (!response.ok) {

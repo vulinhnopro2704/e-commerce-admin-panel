@@ -124,7 +124,7 @@ export interface Product {
   // New fields for API
   types?: ProductType[]
   images?: ProductImage[]
-  condition?: "New" | "Used" | "Refurbished"
+  condition?: "New" | "Used" | "LikeNew"
 }
 
 export interface CreateUpdateProductRequest {
@@ -134,7 +134,7 @@ export interface CreateUpdateProductRequest {
   categoryId: string
   types: ProductType[]
   images: ProductImage[]
-  condition: "New" | "Used" | "Refurbished"
+  condition: "New" | "Used" | "LikeNew"
 }
 
 

@@ -19,6 +19,7 @@ import type { CreateUpdateProductRequest, ProductType, Product } from "@/types"
 import { apiClient } from "@/lib/api"
 import { useCategoriesStore } from "@/lib/categories-store"
 import { toast } from "@/components/ui/use-toast"
+import { API_ENDPOINTS } from "@/constants/endpoints"
 
 export default function CreateProductPage() {
   const router = useRouter()
@@ -48,6 +49,10 @@ export default function CreateProductPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const typeFileInputRefs = useRef<(HTMLInputElement | null)[]>([])
 
+  // Add state for locally stored files
+  const [productImages, setProductImages] = useState<File[]>([])
+  const [typeImages, setTypeImages] = useState<(File | null)[]>([])
+
   useEffect(() => {
     fetchCategories()
   }, [fetchCategories])
@@ -56,7 +61,10 @@ export default function CreateProductPage() {
     if (isEditing && productId) {
       fetchProduct(productId)
     }
-  }, [isEditing, productId])
+
+    // Initialize typeImages array when types change
+    setTypeImages(Array(formData.types.length).fill(null))
+  }, [isEditing, productId, formData.types.length])
 
   const fetchProduct = async (id: string) => {
     try {
@@ -91,7 +99,7 @@ export default function CreateProductPage() {
     if (!files.length) return []
 
     try {
-      // Use apiClient instead of direct fetch
+      // Use apiClient.uploadImages which already handles authentication and proper formatting
       const uploadedUrls = await apiClient.uploadImages(files)
 
       if (uploadedUrls.length === 0) {
@@ -104,6 +112,7 @@ export default function CreateProductPage() {
 
       return uploadedUrls
     } catch (error) {
+      console.error('Image upload error:', error)
       toast({
         title: "Upload Failed",
         description: "Failed to upload images. Please try again.",
@@ -113,7 +122,50 @@ export default function CreateProductPage() {
     }
   }
 
-  const handleFileUpload = async (
+  const uploadAllImages = async (): Promise<{mainImageUrls: string[], typeImageUrls: string[]}> => {
+    const filesToUpload: File[] = []
+
+    // Add all product images to upload queue
+    productImages.forEach(file => {
+      if (file) filesToUpload.push(file)
+    })
+
+    // Add all type images to upload queue
+    const typeFilesToUpload = typeImages.filter(file => file !== null) as File[]
+    filesToUpload.push(...typeFilesToUpload)
+
+    if (filesToUpload.length === 0) {
+      // If no new files to upload, return existing URLs
+      return {
+        mainImageUrls: formData.images.map(img => img.url).filter(url => url.startsWith('http')),
+        typeImageUrls: formData.types.map(type => type.imageUrl).filter(url => url.startsWith('http'))
+      }
+    }
+
+    try {
+      setUploadingImages({ main: true })
+      const uploadedUrls = await apiClient.uploadImages(filesToUpload)
+
+      // Divide the returned URLs between product images and type images
+      const mainImageCount = productImages.filter(f => f !== null).length
+      const mainImageUrls = uploadedUrls.slice(0, mainImageCount)
+      const typeImageUrls = uploadedUrls.slice(mainImageCount)
+
+      return { mainImageUrls, typeImageUrls }
+    } catch (error) {
+      console.error('Failed to upload images:', error)
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload images. Please try again.",
+        variant: "destructive",
+      })
+      return { mainImageUrls: [], typeImageUrls: [] }
+    } finally {
+      setUploadingImages({ main: false })
+    }
+  }
+
+  const handleFileUpload = (
     event: React.ChangeEvent<HTMLInputElement>,
     isForProductType: boolean = false,
     typeIndex: number = -1
@@ -121,41 +173,37 @@ export default function CreateProductPage() {
     const files = event.target.files
     if (!files || files.length === 0) return
 
-    const uploadKey = isForProductType ? `type-${typeIndex}` : "main"
-    setUploadingImages((prev) => ({ ...prev, [uploadKey]: true }))
+    if (isForProductType) {
+      // Store type image file
+      const file = files[0]
+      const newTypeImages = [...typeImages]
+      newTypeImages[typeIndex] = file
+      setTypeImages(newTypeImages)
 
-    try {
+      // Create temporary local URL for preview
+      const localUrl = URL.createObjectURL(file)
+      const updatedTypes = [...formData.types]
+      updatedTypes[typeIndex] = { ...updatedTypes[typeIndex], imageUrl: localUrl }
+      setFormData({ ...formData, types: updatedTypes })
+    } else {
+      // Store product image files
       const fileArray = Array.from(files)
-      const uploadedUrls = await uploadImages(fileArray)
+      setProductImages([...productImages, ...fileArray])
 
-      if (uploadedUrls.length > 0) {
-        if (isForProductType) {
-          // Update product type image
-          const updatedTypes = [...formData.types]
-          updatedTypes[typeIndex] = { ...updatedTypes[typeIndex], imageUrl: uploadedUrls[0] }
-          setFormData({ ...formData, types: updatedTypes })
-        } else {
-          // Update product images
-          const newImages = uploadedUrls.map((url) => ({ url }))
-          setFormData({
-            ...formData,
-            images: [...formData.images, ...newImages].filter((img) => img.url !== ""),
-          })
-        }
+      // Create temporary local URLs for preview
+      const localUrls = fileArray.map(file => URL.createObjectURL(file))
+      const newImages = localUrls.map(url => ({ url }))
+      setFormData({
+        ...formData,
+        images: [...formData.images, ...newImages].filter(img => img.url !== ""),
+      })
+    }
 
-        toast({
-          title: "Upload Successful",
-          description: "Images uploaded successfully",
-        })
-      }
-    } finally {
-      setUploadingImages((prev) => ({ ...prev, [uploadKey]: false }))
-      // Reset file input
-      if (isForProductType && typeFileInputRefs.current[typeIndex]) {
-        typeFileInputRefs.current[typeIndex]!.value = ""
-      } else if (fileInputRef.current) {
-        fileInputRef.current.value = ""
-      }
+    // Reset file input
+    if (isForProductType && typeFileInputRefs.current[typeIndex]) {
+      typeFileInputRefs.current[typeIndex]!.value = ""
+    } else if (fileInputRef.current) {
+      fileInputRef.current.value = ""
     }
   }
 
@@ -164,7 +212,7 @@ export default function CreateProductPage() {
     e.stopPropagation()
   }
 
-  const handleDrop = async (
+  const handleDrop = (
     e: React.DragEvent,
     isForProductType: boolean = false,
     typeIndex: number = -1
@@ -174,35 +222,30 @@ export default function CreateProductPage() {
 
     if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) return
 
-    const uploadKey = isForProductType ? `type-${typeIndex}` : "main"
-    setUploadingImages((prev) => ({ ...prev, [uploadKey]: true }))
+    if (isForProductType) {
+      // Store type image file
+      const file = e.dataTransfer.files[0]
+      const newTypeImages = [...typeImages]
+      newTypeImages[typeIndex] = file
+      setTypeImages(newTypeImages)
 
-    try {
+      // Create temporary local URL for preview
+      const localUrl = URL.createObjectURL(file)
+      const updatedTypes = [...formData.types]
+      updatedTypes[typeIndex] = { ...updatedTypes[typeIndex], imageUrl: localUrl }
+      setFormData({ ...formData, types: updatedTypes })
+    } else {
+      // Store product image files
       const fileArray = Array.from(e.dataTransfer.files)
-      const uploadedUrls = await uploadImages(fileArray)
+      setProductImages([...productImages, ...fileArray])
 
-      if (uploadedUrls.length > 0) {
-        if (isForProductType) {
-          // Update product type image
-          const updatedTypes = [...formData.types]
-          updatedTypes[typeIndex] = { ...updatedTypes[typeIndex], imageUrl: uploadedUrls[0] }
-          setFormData({ ...formData, types: updatedTypes })
-        } else {
-          // Update product images
-          const newImages = uploadedUrls.map((url) => ({ url }))
-          setFormData({
-            ...formData,
-            images: [...formData.images, ...newImages].filter((img) => img.url !== ""),
-          })
-        }
-
-        toast({
-          title: "Upload Successful",
-          description: "Images uploaded successfully",
-        })
-      }
-    } finally {
-      setUploadingImages((prev) => ({ ...prev, [uploadKey]: false }))
+      // Create temporary local URLs for preview
+      const localUrls = fileArray.map(file => URL.createObjectURL(file))
+      const newImages = localUrls.map(url => ({ url }))
+      setFormData({
+        ...formData,
+        images: [...formData.images, ...newImages].filter(img => img.url !== ""),
+      })
     }
   }
 
@@ -212,13 +255,57 @@ export default function CreateProductPage() {
     setError(null)
 
     try {
-      // Filter out empty types and images
-      const cleanedData = {
-        ...formData,
-        types: formData.types.filter((type) => type.name.trim() !== ""),
-        images: formData.images.filter((img) => img.url.trim() !== ""),
+      // 1. First upload all images
+      const { mainImageUrls, typeImageUrls } = await uploadAllImages()
+
+      // 2. Update form data with real image URLs
+      let updatedFormData = { ...formData }
+
+      // Replace local image URLs with server URLs for product images
+      if (mainImageUrls.length > 0) {
+        let existingServerImages = formData.images
+          .filter(img => img.url.startsWith('http') && !img.url.startsWith('blob:'))
+          .map(img => ({ url: img.url }))
+
+        updatedFormData = {
+          ...updatedFormData,
+          images: [
+            ...existingServerImages,
+            ...mainImageUrls.map(url => ({ url }))
+          ]
+        }
       }
 
+      // Replace local image URLs with server URLs for type images
+      if (typeImageUrls.length > 0) {
+        const updatedTypes = [...formData.types]
+        let typeImageIndex = 0
+
+        for (let i = 0; i < updatedTypes.length; i++) {
+          // If this type has a local image (blob URL), replace it with a server URL
+          if (typeImages[i] && typeImageUrls[typeImageIndex]) {
+            updatedTypes[i] = {
+              ...updatedTypes[i],
+              imageUrl: typeImageUrls[typeImageIndex]
+            }
+            typeImageIndex++
+          }
+        }
+
+        updatedFormData = {
+          ...updatedFormData,
+          types: updatedTypes
+        }
+      }
+
+      // 3. Filter out empty types and images
+      const cleanedData = {
+        ...updatedFormData,
+        types: updatedFormData.types.filter((type) => type.name.trim() !== ""),
+        images: updatedFormData.images.filter((img) => img.url.trim() !== "" && !img.url.startsWith('blob:')),
+      }
+
+      // 4. Create or update the product with the new data
       if (isEditing && productId) {
         await apiClient.updateProduct(productId, cleanedData)
         toast({
@@ -274,6 +361,13 @@ export default function CreateProductPage() {
   }
 
   const removeImage = (index: number) => {
+    // Remove the file from productImages if it exists
+    if (index < productImages.length) {
+      const newProductImages = [...productImages]
+      newProductImages.splice(index, 1)
+      setProductImages(newProductImages)
+    }
+
     setFormData({
       ...formData,
       images: formData.images.filter((_, i) => i !== index),
@@ -373,7 +467,7 @@ export default function CreateProductPage() {
                 <Label htmlFor="condition">Condition *</Label>
                 <Select
                   value={formData.condition}
-                  onValueChange={(value: "New" | "Used" | "Refurbished") =>
+                  onValueChange={(value: "New" | "Used" | "LikeNew") =>
                     setFormData({ ...formData, condition: value })
                   }
                   required
@@ -384,7 +478,7 @@ export default function CreateProductPage() {
                   <SelectContent>
                     <SelectItem value="New">New</SelectItem>
                     <SelectItem value="Used">Used</SelectItem>
-                    <SelectItem value="Refurbished">Refurbished</SelectItem>
+                    <SelectItem value="LikeNew">LikeNew</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
