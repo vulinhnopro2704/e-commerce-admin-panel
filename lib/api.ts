@@ -333,13 +333,46 @@ class ApiClient {
     )
   }
 
-  async deleteUser(id: string) {
-    return this.fetchWithAuth(
-      API_ENDPOINTS.IDENTITY.USER_BY_ID(id),
-      { method: "DELETE" },
-      false,
-      1
-    )
+  async deleteUser(id: string): Promise<void> {
+    // Use direct fetch to avoid duplicate calls and error toasts
+    const { accessToken } = this.getTokens();
+    if (!accessToken) throw new Error("No access token available");
+
+    const response = await fetch(API_ENDPOINTS.IDENTITY.USER_BY_ID(id), {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "ngrok-skip-browser-warning": "true",
+      },
+    });
+    
+    // Just check if status code starts with 2 (success)
+    if (!response.ok) {
+      throw new Error(`Delete failed with status: ${response.status}`);
+    }
+    
+    // No return for 204 No Content
+  }
+
+  async restoreUser(id: string): Promise<void> {
+    // Use direct fetch to avoid duplicate calls and error toasts
+    const { accessToken } = this.getTokens();
+    if (!accessToken) throw new Error("No access token available");
+
+    const response = await fetch(`${API_ENDPOINTS.IDENTITY.USER_BY_ID(id)}/restore`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "ngrok-skip-browser-warning": "true",
+      },
+    });
+    
+    // Just check if status code starts with 2 (success)
+    if (!response.ok) {
+      throw new Error(`Restore failed with status: ${response.status}`);
+    }
+    
+    // No return for 204 No Content
   }
 
   async changeMyPassword(passwordData: ChangePasswordRequest) {

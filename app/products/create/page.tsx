@@ -112,7 +112,6 @@ export default function CreateProductPage() {
 
       return uploadedUrls
     } catch (error) {
-      console.error('Image upload error:', error)
       toast({
         title: "Upload Failed",
         description: "Failed to upload images. Please try again.",
@@ -153,7 +152,6 @@ export default function CreateProductPage() {
 
       return { mainImageUrls, typeImageUrls }
     } catch (error) {
-      console.error('Failed to upload images:', error)
       toast({
         title: "Upload Failed",
         description: "Failed to upload images. Please try again.",

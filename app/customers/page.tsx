@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
-import { Plus, Trash2, UserX, UserCheck } from "lucide-react"
+import { Plus, Trash2, RefreshCw, Eye, UserCheck, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import DataTable, { type Column } from "@/components/ui/data-table"
@@ -11,12 +11,13 @@ import AddUserDialog from "@/components/customers/add-user-dialog"
 import Header from "@/components/layout/header"
 import type { PaginationMeta, User, UserQueryParams } from "@/types"
 import { apiClient } from "@/lib/api"
+import UserDetailsDialog from "@/components/customers/user-details-dialog"
 
 export default function CustomersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [dialogType, setDialogType] = useState<"delete" | "disable" | null>(null)
+  const [dialogType, setDialogType] = useState<"delete" | "restore" | "details" | null>(null)
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
@@ -79,30 +80,37 @@ export default function CustomersPage() {
   }
 
   const handleDeleteUser = async () => {
-    if (!selectedUser) return
+    if (!selectedUser || isProcessing) return // Prevent duplicate calls
 
     try {
       setIsProcessing(true)
       await apiClient.deleteUser(selectedUser.id)
-      fetchUsers() // Refresh list after deletion
+      
+      // Immediately update UI state on success
       setDialogType(null)
       setSelectedUser(null)
+      
+      // Then fetch updated data
+      fetchUsers()
     } catch (error) {
     } finally {
       setIsProcessing(false)
     }
   }
 
-  const handleToggleUserStatus = async () => {
-    if (!selectedUser) return
+  const handleRestoreUser = async () => {
+    if (!selectedUser || isProcessing) return // Prevent duplicate calls
 
     try {
       setIsProcessing(true)
-      // In a real app, you would call an appropriate API to disable/enable the user
-      // For now, just refresh the list
-      fetchUsers()
+      await apiClient.restoreUser(selectedUser.id)
+      
+      // Immediately update UI state on success
       setDialogType(null)
       setSelectedUser(null)
+      
+      // Then fetch updated data
+      fetchUsers()
     } catch (error) {
     } finally {
       setIsProcessing(false)
@@ -116,7 +124,10 @@ export default function CustomersPage() {
       sortable: true,
       sortKey: "Name", // API field name
       render: (user) => (
-        <div>
+        <div className="cursor-pointer" onClick={() => {
+          setSelectedUser(user)
+          setDialogType("details")
+        }}>
           <div className="font-medium text-gray-900">{user.name}</div>
           <div className="text-sm text-gray-500">{user.email}</div>
         </div>
@@ -142,7 +153,7 @@ export default function CustomersPage() {
       key: "status",
       header: "Status",
       render: (user) => (
-        <Badge variant={!user.deletedAt ? "default" : "destructive"}>
+        <Badge variant={!user.deletedAt ? "default" : "destructive"} className={user.deletedAt ? "bg-red-100 text-red-800" : ""}>
           {!user.deletedAt ? "Active" : "Deleted"}
         </Badge>
       ),
@@ -159,29 +170,44 @@ export default function CustomersPage() {
       header: "Actions",
       render: (user) => (
         <div className="flex items-center space-x-2">
-          {/* <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setSelectedUser(user)
-              setDialogType("disable")
-            }}
-            className="text-orange-600 hover:text-orange-700"
-          >
-            {!user.deletedAt ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-          </Button> */}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
               setSelectedUser(user)
-              setDialogType("delete")
+              setDialogType("details")
             }}
-            className="text-red-600 hover:text-red-700"
-            disabled={user.role === "admin"}
+            className="text-blue-600 hover:text-blue-700"
           >
-            <Trash2 className="w-4 h-4" />
+            <Eye className="w-4 h-4" />
           </Button>
+          
+          {user.deletedAt ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSelectedUser(user)
+                setDialogType("restore")
+              }}
+              className="text-green-600 hover:text-green-700"
+            >
+              <UserCheck className="w-4 h-4" />
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSelectedUser(user)
+                setDialogType("delete")
+              }}
+              className="text-red-600 hover:text-red-700"
+              disabled={user.role === "admin"}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -208,13 +234,24 @@ export default function CustomersPage() {
             onPageChange: handlePageChange
           }}
           actions={
-            <Button 
-              className="bg-purple-600 hover:bg-purple-700"
-              onClick={() => setIsAddUserDialogOpen(true)}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Customer
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                onClick={fetchUsers} 
+                disabled={isLoading}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+              <Button 
+                className="bg-purple-600 hover:bg-purple-700"
+                onClick={() => setIsAddUserDialogOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Customer
+              </Button>
+            </div>
           }
           emptyState={
             <div className="text-center py-8">
@@ -231,6 +268,16 @@ export default function CustomersPage() {
         onSuccess={fetchUsers}
       />
 
+      {/* User Details Dialog */}
+      <UserDetailsDialog
+        isOpen={dialogType === "details"}
+        onClose={() => {
+          setDialogType(null)
+          setSelectedUser(null)
+        }}
+        user={selectedUser}
+      />
+
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
         isOpen={dialogType === "delete"}
@@ -240,24 +287,24 @@ export default function CustomersPage() {
         }}
         onConfirm={handleDeleteUser}
         title="Delete Customer"
-        message={`Are you sure you want to delete ${selectedUser?.name}? This action cannot be undone.`}
+        message={`Are you sure you want to delete ${selectedUser?.name}? This user will be soft-deleted and can be restored later.`}
         confirmText="Delete"
         type="danger"
         isLoading={isProcessing}
       />
 
-      {/* Disable/Enable Confirmation Dialog */}
+      {/* Restore Confirmation Dialog */}
       <ConfirmationDialog
-        isOpen={dialogType === "disable"}
+        isOpen={dialogType === "restore"}
         onClose={() => {
           setDialogType(null)
           setSelectedUser(null)
         }}
-        onConfirm={handleToggleUserStatus}
-        title={!selectedUser?.deletedAt ? "Disable Customer" : "Enable Customer"}
-        message={`Are you sure you want to ${!selectedUser?.deletedAt ? "disable" : "enable"} ${selectedUser?.name}?`}
-        confirmText={!selectedUser?.deletedAt ? "Disable" : "Enable"}
-        type="warning"
+        onConfirm={handleRestoreUser}
+        title="Restore Customer"
+        message={`Are you sure you want to restore ${selectedUser?.name}?`}
+        confirmText="Restore"
+        type="success"
         isLoading={isProcessing}
       />
     </div>
