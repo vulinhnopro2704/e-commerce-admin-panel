@@ -1,5 +1,5 @@
 // Update with your actual ngrok URL
-const BASE_URL = 'https://9ebf-116-110-82-126.ngrok-free.app'
+const BASE_URL = 'https://62c1-116-110-82-126.ngrok-free.app'
 export const API_ENDPOINTS = {
   // Identity Service
   IDENTITY: {
